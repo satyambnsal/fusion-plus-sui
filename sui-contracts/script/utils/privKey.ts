@@ -14,3 +14,4 @@ export function getKeypair(privkey: string) {
   }
 }
 
+export type GenericKeyPairType = Ed25519Keypair | Secp256k1Keypair | Secp256r1Keypair

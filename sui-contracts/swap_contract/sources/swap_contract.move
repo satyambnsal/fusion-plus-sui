@@ -1,4 +1,3 @@
-
 module swap_contract::swap_v3 {
     use sui::coin::{Self, Coin};
     use sui::balance::{Balance};
@@ -6,7 +5,6 @@ module swap_contract::swap_v3 {
     use sui::hash;
     use sui::event;
 
-    /// Error constants
     const EINVALID_AMOUNT: u64 = 3;
     const EORDER_ALREADY_FILLED_OR_CANCELLED: u64 = 5;
     const EORDER_EXPIRED: u64 = 6;
@@ -14,7 +12,6 @@ module swap_contract::swap_v3 {
     const EINVALID_SECRET: u64 = 11;
     const EINVALID_SECRET_HASH: u64 = 15;
 
-    /// Struct representing an order
     public struct Order<phantom T> has key, store {
         id: UID,
         maker: address,
@@ -28,13 +25,11 @@ module swap_contract::swap_v3 {
         coins: Option<Balance<T>>,
     }
 
-    /// Shared object for managing orders
     public struct SwapRegistry has key {
         id: UID,
         order_counter: u64,
     }
 
-    /// Events
     public struct OrderAnnounced has copy, drop {
         order_id: ID,
         maker: address,
@@ -63,7 +58,6 @@ module swap_contract::swap_v3 {
         maker: address,
     }
 
-    /// Initialize the swap registry (called once)
     fun init(ctx: &mut TxContext) {
         let registry = SwapRegistry {
             id: object::new(ctx),
@@ -72,7 +66,6 @@ module swap_contract::swap_v3 {
         transfer::share_object(registry);
     }
 
-    /// Phase 1: Announce - Maker creates order with secret hash and deposits funds
     public entry fun announce_order<T>(
         registry: &mut SwapRegistry,
         payment: Coin<T>,
@@ -123,7 +116,6 @@ module swap_contract::swap_v3 {
         registry.order_counter = registry.order_counter + 1;
     }
 
-    /// Phase 2: Fund destination escrow - Resolver deposits funds with same secret hash
     public entry fun fund_dst_escrow<T>(
         registry: &mut SwapRegistry,
         payment: Coin<T>,
@@ -156,7 +148,6 @@ module swap_contract::swap_v3 {
             coins: option::some(coin::into_balance(payment)),
         };
         
-        // Emit event
         event::emit(OrderFunded {
             order_id: order_id_copy,
             resolver,
@@ -165,23 +156,22 @@ module swap_contract::swap_v3 {
             secret_hash,
         });
         
-        // Share the order object
+
         transfer::share_object(order);
         
         registry.order_counter = registry.order_counter + 1;
     }
 
-    /// Phase 3: Claim - Resolver provides secret to claim funds from maker's order
+
     public entry fun claim_funds<T>(
         order: &mut Order<T>,
         secret: vector<u8>,
         clock: &Clock,
         ctx: &mut TxContext
     ) {
-        // Check that order hasn't expired
         assert!(clock::timestamp_ms(clock) < order.expiration_timestamp_ms, EORDER_EXPIRED);
 
-        // Check that secret hasn't been revealed yet (order not already completed)
+
         assert!(option::is_none(&order.revealed_secret), EORDER_ALREADY_FILLED_OR_CANCELLED);
 
         // Verify secret hash using Keccak256
