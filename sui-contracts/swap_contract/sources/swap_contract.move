@@ -199,8 +199,7 @@ module swap_contract::swap_v3 {
             secret,
         });
     }
-
-    /// Cancel swap - returns funds to maker if order has expired or immediately if maker calls
+    
     public entry fun cancel_swap<T>(
         order: &mut Order<T>,
         clock: &Clock,
