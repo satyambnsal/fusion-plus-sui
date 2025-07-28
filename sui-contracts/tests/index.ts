@@ -1,5 +1,4 @@
-import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
-import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
+import { getFullnodeUrl, SuiClient, SuiTransactionBlockResponse } from '@mysten/sui/client';
 import { Transaction } from '@mysten/sui/transactions';
 import { ethers } from 'ethers';
 import { GenericKeyPairType, getKeypair } from './utils/privKey';
@@ -15,7 +14,7 @@ const SILVER_COIN_ADDRESS = process.env.SILVER_COIN_ADDRESS || '0xe33c8ada01d0c5
 
 const client = new SuiClient({ url: RPC_URL });
 const userKeypair = getKeypair(process.env.USER_PRIVATE_KEY || "")
-const resolverKeypair = getKeypair(process.env.RESOLVER_PRIVATE_KEY)
+const resolverKeypair = getKeypair(process.env.RESOLVER_PRIVATE_KEY || "")
 const userAddress = userKeypair.getPublicKey().toSuiAddress()
 const resolverAddress = resolverKeypair.getPublicKey().toSuiAddress()
 console.log({ userAddress, resolverAddress });
@@ -25,7 +24,7 @@ async function executeTransaction(
   tx: Transaction,
   keypairToUse: GenericKeyPairType,
   description?: string
-): Promise<boolean> {
+): Promise<SuiTransactionBlockResponse> {
   try {
     if (description) {
       console.log(`📤 ${description}...`);
@@ -66,10 +65,10 @@ async function executeTransaction(
         });
       }
 
-      return true;
+      return result;
     } else {
       console.log('❌ Transaction failed:', result.effects?.status);
-      return false;
+      return result;
     }
   } catch (error: any) {
     console.error('❌ Error executing transaction:', error.message);
@@ -124,7 +123,21 @@ async function announceOrder<T>(
     ],
   });
 
-  return await executeTransaction(tx, userKeypair, 'Announcing order');
+  const result = await executeTransaction(tx, userKeypair, 'Announcing order');
+  if (result) {
+    const createdObjects = result.objectChanges?.filter(
+      (change) => change.type === 'created' && change.objectType.includes('Order')
+    );
+    return {
+      success: true,
+      orderObjectId: createdObjects && createdObjects.length > 0 ? createdObjects[0].objectId : null,
+    };
+  } else {
+    return {
+      success: false,
+      orderObjectId: null
+    };
+  }
 }
 
 // Fund destination escrow - resolver deposits funds with same secret hash
@@ -403,4 +416,4 @@ export {
 };
 
 // Run if this file is executed directly
-main().catch(console.error);
+// main().catch(console.error);

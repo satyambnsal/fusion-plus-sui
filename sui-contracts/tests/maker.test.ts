@@ -1,0 +1,136 @@
+import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import {
+  announceOrder,
+  cancelSwap,
+  getBalance,
+  findCoinsOfType,
+  executeTransaction,
+} from './index';
+import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
+import { Transaction } from '@mysten/sui/transactions';
+import { ethers } from 'ethers';
+import { GenericKeyPairType, getKeypair } from './utils/privKey';
+
+const RPC_URL = getFullnodeUrl('testnet');
+const SILVER_COIN_ADDRESS = process.env.SILVER_COIN_ADDRESS || '0xe33c8ada01d0c54b83546a768bf35b9af658502b59fa03c20793f832a91098d5::silver::SILVER';
+const PACKAGE_ID = process.env.SWAP_PACKAGE_ID || 'YOUR_PACKAGE_ID_HERE';
+const REGISTRY_OBJECT_ID = process.env.SWAP_REGISTRY_OBJECT_ID || 'YOUR_REGISTRY_OBJECT_ID_HERE';
+const CLOCK_OBJECT_ID = '0x6';
+
+const client = new SuiClient({ url: RPC_URL });
+const userKeypair: GenericKeyPairType = getKeypair(process.env.USER_PRIVATE_KEY || '');
+const userAddress = userKeypair.getPublicKey().toSuiAddress();
+
+describe('Swap Order Functionality', () => {
+  let initialBalance: string;
+  let coinObjectId: string;
+  let orderObjectId: string;
+  const AMOUNT = 1000000000;
+  const MIN_AMOUNT = 1000000000;
+  const EXPIRATION_MS = 3600000;
+  const secret = ethers.toUtf8Bytes('my_secret_password_for_swap_test');
+  const secretHash = new Uint8Array(ethers.getBytes(ethers.keccak256(secret)));
+
+  beforeAll(async () => {
+    const coins = await findCoinsOfType(SILVER_COIN_ADDRESS, userAddress);
+    expect(coins.length).toBeGreaterThan(0);
+    coinObjectId = coins[0].coinObjectId;
+
+    // Get initial balance
+    const balance = await getBalance(userAddress);
+    initialBalance = balance.totalBalance;
+    expect(initialBalance).not.toBe('0');
+  });
+
+  describe('Announce Order', () => {
+    it('should announce order and decrease user balance', async () => {
+      // Get balance before announcing order
+      const balanceBefore = await getBalance(userAddress);
+      const balanceBeforeNum = BigInt(balanceBefore.totalBalance);
+
+      // Announce order and get result
+      const { success, orderObjectId: newOrderObjectId } = await announceOrder(
+        SILVER_COIN_ADDRESS,
+        AMOUNT,
+        MIN_AMOUNT,
+        EXPIRATION_MS,
+        secretHash,
+        coinObjectId
+      );
+
+      expect(success).toBe(true);
+      expect(newOrderObjectId).not.toBeNull();
+      orderObjectId = newOrderObjectId!; // Store for other tests if needed
+
+      // Verify balance decreased
+      const balanceAfter = await getBalance(userAddress);
+      const balanceAfterNum = BigInt(balanceAfter.totalBalance);
+      expect(balanceAfterNum).toBeLessThan(balanceBeforeNum);
+      expect(balanceBeforeNum - balanceAfterNum).toBeGreaterThanOrEqual(BigInt(AMOUNT));
+    });
+  });
+
+  // describe('Cancel Order', () => {
+  //   beforeEach(async () => {
+  //     // Ensure order is announced before cancellation test
+  //     const coins = await findCoinsOfType(SILVER_COIN_ADDRESS, userAddress);
+  //     expect(coins.length).toBeGreaterThan(0);
+  //     coinObjectId = coins[0].coinObjectId;
+
+  //     const announceSuccess = await announceOrder(
+  //       SILVER_COIN_ADDRESS,
+  //       AMOUNT,
+  //       MIN_AMOUNT,
+  //       EXPIRATION_MS,
+  //       secretHash,
+  //       coinObjectId
+  //     );
+  //     expect(announceSuccess).toBe(true);
+
+  //     // Get order object ID (simplified, assumes similar logic as above)
+  //     const tx = new Transaction();
+  //     tx.moveCall({
+  //       target: `${PACKAGE_ID}::swap_v3::announce_order`,
+  //       typeArguments: [SILVER_COIN_ADDRESS],
+  //       arguments: [
+  //         tx.object(REGISTRY_OBJECT_ID),
+  //         tx.object(coinObjectId),
+  //         tx.pure.u64(MIN_AMOUNT),
+  //         tx.pure.u64(EXPIRATION_MS),
+  //         tx.pure.vector('u8', Array.from(secretHash)),
+  //         tx.object(CLOCK_OBJECT_ID),
+  //       ],
+  //     });
+
+  //     const result = await client.signAndExecuteTransaction({
+  //       signer: userKeypair,
+  //       transaction: tx,
+  //       options: {
+  //         showObjectChanges: true,
+  //       },
+  //     });
+
+  //     const createdObjects = result.objectChanges?.filter(
+  //       (change) => change.type === 'created' && change.objectType.includes('Order')
+  //     );
+  //     expect(createdObjects).toBeDefined();
+  //     orderObjectId = createdObjects![0].objectId;
+  //   });
+
+  //   it('should cancel order and restore user balance', async () => {
+  //     // Get balance before cancellation
+  //     const balanceBefore = await getBalance(userAddress);
+  //     const balanceBeforeNum = BigInt(balanceBefore.totalBalance);
+
+  //     // Cancel order
+  //     const cancelSuccess = await cancelSwap(SILVER_COIN_ADDRESS, orderObjectId);
+  //     expect(cancelSuccess).toBe(true);
+
+  //     // Verify balance restored
+  //     const balanceAfter = await getBalance(userAddress);
+  //     const balanceAfterNum = BigInt(balanceAfter.totalBalance);
+  //     expect(balanceAfterNum).toBeGreaterThan(balanceBeforeNum);
+  //     expect(balanceAfterNum - balanceBeforeNum).toBeGreaterThanOrEqual(BigInt(AMOUNT));
+  //   });
+  // });
+});
