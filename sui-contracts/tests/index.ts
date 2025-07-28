@@ -26,11 +26,7 @@ async function executeTransaction(
   description?: string
 ): Promise<SuiTransactionBlockResponse> {
   try {
-    if (description) {
-      console.log(`📤 ${description}...`);
-    }
 
-    console.log('📝 Transaction block created');
 
     const result = await client.signAndExecuteTransaction({
       signer: keypairToUse,
@@ -50,20 +46,19 @@ async function executeTransaction(
       console.log('✅ Transaction successful!');
 
       // Log events
-      if (result.events && result.events.length > 0) {
-        console.log('📢 Events:');
-        result.events.forEach((event, i) => {
-          console.log(`  Event ${i}:`, JSON.stringify(event, null, 2));
-        });
-      }
+      // if (result.events && result.events.length > 0) {
+      //   result.events.forEach((event, i) => {
+      //     console.log(`  Event ${i}:`, JSON.stringify(event, null, 2));
+      //   });
+      // }
 
       // Log object changes
-      if (result.objectChanges && result.objectChanges.length > 0) {
-        console.log('📦 Object changes:');
-        result.objectChanges.forEach((change, i) => {
-          console.log(`  Change ${i}:`, JSON.stringify(change, null, 2));
-        });
-      }
+      // if (result.objectChanges && result.objectChanges.length > 0) {
+      //   console.log('📦 Object changes:');
+      //   result.objectChanges.forEach((change, i) => {
+      //     console.log(`  Change ${i}:`, JSON.stringify(change, null, 2));
+      //   });
+      // }
 
       return result;
     } else {
@@ -72,7 +67,6 @@ async function executeTransaction(
     }
   } catch (error: any) {
     console.error('❌ Error executing transaction:', error.message);
-    return false;
   }
 }
 
@@ -165,7 +159,21 @@ async function fundDstEscrow<T>(
     ],
   });
 
-  return await executeTransaction(tx, resolverKeypair, 'Funding destination escrow');
+  const result = await executeTransaction(tx, resolverKeypair, 'Funding destination escrow');
+  if (result) {
+    const createdObjects = result.objectChanges?.filter(
+      (change) => change.type === 'created' && change.objectType.includes('Order')
+    );
+    return {
+      success: true,
+      orderObjectId: createdObjects && createdObjects.length > 0 ? createdObjects[0].objectId : null,
+    };
+  } else {
+    return {
+      success: false,
+      orderObjectId: null
+    };
+  }
 }
 
 // Claim funds - resolver provides secret to claim funds
