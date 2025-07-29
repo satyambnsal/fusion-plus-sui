@@ -1,0 +1,500 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Fusion Resolver API",
+    "description": "API for Fusion Resolver and Relayer endpoints",
+    "version": "1.0.0"
+  },
+  "host": "localhost:3000",
+  "basePath": "/",
+  "tags": [
+    {
+      "name": "Relayer",
+      "description": "Relayer endpoints for cross-chain operations"
+    },
+    {
+      "name": "Resolver",
+      "description": "Resolver endpoints for order management"
+    }
+  ],
+  "schemes": [
+    "http"
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "description": "",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/relayer/getQuote": {
+      "get": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "srcChainId",
+            "in": "query",
+            "type": "string"
+          },
+          {
+            "name": "dstChainId",
+            "in": "query",
+            "type": "string"
+          },
+          {
+            "name": "srcTokenAddress",
+            "in": "query",
+            "type": "string"
+          },
+          {
+            "name": "dstTokenAddress",
+            "in": "query",
+            "type": "string"
+          },
+          {
+            "name": "amount",
+            "in": "query",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          }
+        }
+      }
+    },
+    "/resolver/orders": {
+      "get": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "address",
+            "in": "query",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          }
+        }
+      }
+    },
+    "/resolver/execute": {
+      "post": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "orderId": {
+                  "example": "any"
+                },
+                "signature": {
+                  "example": "any"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          }
+        }
+      }
+    },
+    "/relayer/announceOrder": {
+      "post": {
+        "description": "Announces a cross-chain swap order from an ERC20 token on Ethereum (Sepolia) to a token on Aptos using the 1inch Cross-Chain SDK. The relayer manages additional fields like timelocks, safety deposits, auction details, whitelist, and nonce. Requires a valid EIP-712 signature to authorize the token transfer.",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "makerAddress": {
+                  "type": "string",
+                  "example": "0x1234567890abcdef1234567890abcdef12345678"
+                },
+                "srcChainId": {
+                  "type": "string",
+                  "example": "11155111"
+                },
+                "dstChainId": {
+                  "type": "string",
+                  "example": "100"
+                },
+                "srcTokenAddress": {
+                  "type": "string",
+                  "example": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
+                },
+                "dstTokenAddress": {
+                  "type": "string",
+                  "example": "0x55625547c27ed94dde4184151d8a688d39615ace5d389b7fa4f0dbf887819b7c::my_token::SimpleToken"
+                },
+                "srcAmount": {
+                  "type": "string",
+                  "example": "1000000"
+                },
+                "dstAmount": {
+                  "type": "string",
+                  "example": "1000000"
+                },
+                "secretHash": {
+                  "type": "string",
+                  "example": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+                },
+                "signature": {
+                  "type": "string",
+                  "example": "0xabcdef1234567890..."
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "type": "boolean",
+                  "example": true
+                },
+                "orderId": {
+                  "type": "string",
+                  "example": "0xabcdef1234567890..."
+                },
+                "message": {
+                  "type": "string",
+                  "example": "Order successfully announced"
+                },
+                "order": {
+                  "type": "object",
+                  "properties": {
+                    "orderId": {
+                      "type": "string",
+                      "example": "0xabcdef1234567890..."
+                    },
+                    "makerAddress": {
+                      "type": "string",
+                      "example": "0x1234567890abcdef1234567890abcdef12345678"
+                    },
+                    "srcChainId": {
+                      "type": "string",
+                      "example": "11155111"
+                    },
+                    "dstChainId": {
+                      "type": "string",
+                      "example": "100"
+                    },
+                    "srcTokenAddress": {
+                      "type": "string",
+                      "example": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
+                    },
+                    "dstTokenAddress": {
+                      "type": "string",
+                      "example": "0x55625547c27ed94dde4184151d8a688d39615ace5d389b7fa4f0dbf887819b7c::my_token::SimpleToken"
+                    },
+                    "srcAmount": {
+                      "type": "string",
+                      "example": "1000000"
+                    },
+                    "dstAmount": {
+                      "type": "string",
+                      "example": "1000000"
+                    },
+                    "secretHash": {
+                      "type": "string",
+                      "example": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+                    },
+                    "timelocks": {
+                      "type": "object",
+                      "properties": {
+                        "srcWithdrawal": {
+                          "type": "string",
+                          "example": "10"
+                        },
+                        "srcPublicWithdrawal": {
+                          "type": "string",
+                          "example": "120"
+                        },
+                        "srcCancellation": {
+                          "type": "string",
+                          "example": "121"
+                        },
+                        "srcPublicCancellation": {
+                          "type": "string",
+                          "example": "122"
+                        },
+                        "dstWithdrawal": {
+                          "type": "string",
+                          "example": "10"
+                        },
+                        "dstPublicWithdrawal": {
+                          "type": "string",
+                          "example": "100"
+                        },
+                        "dstCancellation": {
+                          "type": "string",
+                          "example": "101"
+                        }
+                      }
+                    },
+                    "srcSafetyDeposit": {
+                      "type": "string",
+                      "example": "1000000000000000"
+                    },
+                    "dstSafetyDeposit": {
+                      "type": "string",
+                      "example": "1000000000000000"
+                    },
+                    "auctionDetails": {
+                      "type": "object",
+                      "properties": {
+                        "initialRateBump": {
+                          "type": "integer",
+                          "example": 0
+                        },
+                        "points": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          },
+                          "example": []
+                        },
+                        "duration": {
+                          "type": "string",
+                          "example": "120"
+                        },
+                        "startTime": {
+                          "type": "string",
+                          "example": "1690643600"
+                        }
+                      }
+                    },
+                    "whitelist": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "address": {
+                            "type": "string",
+                            "example": "0xresolver_address"
+                          },
+                          "allowFrom": {
+                            "type": "string",
+                            "example": "0"
+                          }
+                        }
+                      }
+                    },
+                    "nonce": {
+                      "type": "string",
+                      "example": "1234567890"
+                    },
+                    "signature": {
+                      "type": "string",
+                      "example": "0xabcdef1234567890..."
+                    },
+                    "status": {
+                      "type": "string",
+                      "example": "announced"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "example": "2025-07-27T14:05:00.000Z"
+                    },
+                    "validUntil": {
+                      "type": "string",
+                      "example": "2025-07-27T14:07:02.000Z"
+                    },
+                    "orderHash": {
+                      "type": "string",
+                      "example": "0xabcdef1234567890..."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "example": "Missing required parameters"
+                },
+                "required": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "example": [
+                    "makerAddress",
+                    "srcChainId",
+                    "dstChainId",
+                    "srcTokenAddress",
+                    "dstTokenAddress",
+                    "srcAmount",
+                    "dstAmount",
+                    "secretHash",
+                    "signature"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "example": "Invalid signature"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string",
+                  "example": "Failed to announce order"
+                },
+                "details": {
+                  "type": "string",
+                  "example": "Error message details"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "Quote": {
+      "type": "object",
+      "properties": {
+        "srcChainId": {
+          "type": "number",
+          "example": 1
+        },
+        "dstChainId": {
+          "type": "number",
+          "example": 2
+        },
+        "srcTokenAddress": {
+          "type": "string",
+          "example": "0x..."
+        },
+        "dstTokenAddress": {
+          "type": "string",
+          "example": "0x..."
+        },
+        "srcAmount": {
+          "type": "string",
+          "example": "1000000000000000000"
+        },
+        "dstAmount": {
+          "type": "string",
+          "example": "2000000000000000000"
+        },
+        "exchangeRate": {
+          "type": "number",
+          "example": 2
+        },
+        "estimatedGas": {
+          "type": "string",
+          "example": "21000"
+        },
+        "gasPrice": {
+          "type": "string",
+          "example": "20000000000"
+        },
+        "fees": {
+          "type": "object",
+          "properties": {
+            "protocolFee": {
+              "type": "string",
+              "example": "0"
+            },
+            "gasFee": {
+              "type": "string",
+              "example": "420000000000000"
+            }
+          }
+        },
+        "route": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string",
+                "example": "0x..."
+              },
+              "to": {
+                "type": "string",
+                "example": "0x..."
+              },
+              "exchange": {
+                "type": "string",
+                "example": "AptosCrossChain"
+              }
+            }
+          }
+        },
+        "timestamp": {
+          "type": "string",
+          "example": "2024-03-21T12:00:00Z"
+        },
+        "validUntil": {
+          "type": "string",
+          "example": "2024-03-21T12:00:30Z"
+        }
+      }
+    },
+    "Order": {
+      "type": "object",
+      "properties": {
+        "orderId": {
+          "type": "string",
+          "example": "0x..."
+        },
+        "signature": {
+          "type": "string",
+          "example": "0x..."
+        }
+      }
+    }
+  }
+}

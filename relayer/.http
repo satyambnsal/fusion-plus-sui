@@ -1,0 +1,191 @@
+### Announce Order
+
+POST http://localhost:3000/relayer/createOrder
+content-type: application/json
+
+{
+  "maker": "0xAF8AE7A70f3E0158d4587B642E6d60c9Da8Faa1D",
+  "makingAmount": "1000000",
+  "takingAmount": "1000000",
+  "makerAsset": "0x51B6c8FAb037fBf365CF43A02c953F2305e70bb4",
+  "takerAsset": "0x0000000000000000000000000000000000000000",
+  "srcChainId": 1,
+  "dstChainId": 8453,
+  "secret": "my_secret_password_for_swap_test"
+}
+
+
+### Get Health
+GET http://localhost:3000/health
+
+
+### Get Quote
+GET http://localhost:3000/relayer/getQuote
+    ?srcTokenAddress=0x51B6c8FAb037fBf365CF43A02c953F2305e70bb4
+    &dstTokenAddress=0x0000000000000000000000000000000000000000
+    &srcChainId=11155111
+    &dstChainId=8453
+    &amount=11111
+Content-Type: application/json
+
+
+
+### Fill order
+POST http://localhost:3000/relayer/fillOrder
+content-type: application/json
+
+{
+   "order": {
+    "inner": {
+      "settlementExtensionContract": {
+        "val": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e"
+      },
+      "inner": {
+        "extension": {
+          "makerAssetSuffix": "0x",
+          "takerAssetSuffix": "0x",
+          "makingAmountData": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e000000000000006887c6ac000078000000",
+          "takingAmountData": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e000000000000006887c6ac000078000000",
+          "predicate": "0x",
+          "makerPermit": "0x",
+          "preInteraction": "0x",
+          "postInteraction": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e0000000066adc2bd50b1b9485a0e0000088315de3a561f3447be0da5bce7c13a5b2a058fb1329eb0353b5f4292c3da44e900000000000000000000000000000000000000000000000000000000000021050000000000000000000000000000000000000000000000000000000000000000000000000000000000038d7ea4c68000000000000000000000038d7ea4c680000000000000000065000000640000000a0000007a00000079000000780000000a",
+          "customData": "0x"
+        },
+        "makerAsset": {
+          "val": "0x51b6c8fab037fbf365cf43a02c953f2305e70bb4"
+        },
+        "takerAsset": {
+          "val": "0xda0000d4000015a526378bb6fafc650cea5966f8"
+        },
+        "makingAmount": "1000000",
+        "takingAmount": "1000000",
+        "_salt": "463735918316295014385478758263107428003816802617848",
+        "maker": {
+          "val": "0xaf8ae7a70f3e0158d4587b642e6d60c9da8faa1d"
+        },
+        "receiver": {
+          "val": "0x0000000000000000000000000000000000000000"
+        },
+        "makerTraits": {
+          "value": {
+            "value": "62419173104490761595518734106704108366169052948734564286747269145615763767296"
+          }
+        }
+      },
+      "fusionExtension": {
+        "address": {
+          "val": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e"
+        },
+        "auctionDetails": {
+          "startTime": "1753728684",
+          "initialRateBump": "0",
+          "duration": "120",
+          "points": {},
+          "gasCost": {
+            "gasBumpEstimate": "0",
+            "gasPriceEstimate": "0"
+          }
+        },
+        "postInteractionData": {
+          "whitelist": {
+            "0": {
+              "delay": "0",
+              "addressHalf": "66adc2bd50b1b9485a0e"
+            }
+          },
+          "bankFee": "0",
+          "resolvingStartTime": "0"
+        },
+        "builder": {
+          "makerAssetSuffix": "0x",
+          "takerAssetSuffix": "0x",
+          "makingAmountData": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e000000000000006887c6ac000078000000",
+          "takingAmountData": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e000000000000006887c6ac000078000000",
+          "predicate": "0x",
+          "makerPermit": "0x",
+          "preInteraction": "0x",
+          "postInteraction": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e0000000066adc2bd50b1b9485a0e000008",
+          "customData": "0x"
+        },
+        "hashLockInfo": {
+          "value": "0x8315de3a561f3447be0da5bce7c13a5b2a058fb1329eb0353b5f4292c3da44e9"
+        },
+        "dstChainId": 8453,
+        "dstToken": {
+          "val": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        },
+        "srcSafetyDeposit": "1000000000000000",
+        "dstSafetyDeposit": "1000000000000000",
+        "timeLocks": {
+          "_srcWithdrawal": "10",
+          "_srcPublicWithdrawal": "120",
+          "_srcCancellation": "121",
+          "_srcPublicCancellation": "122",
+          "_dstWithdrawal": "10",
+          "_dstPublicWithdrawal": "100",
+          "_dstCancellation": "101",
+          "_deployedAt": "0"
+        }
+      },
+      "escrowExtension": {
+        "address": {
+          "val": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e"
+        },
+        "auctionDetails": {
+          "startTime": "1753728684",
+          "initialRateBump": "0",
+          "duration": "120",
+          "points": {},
+          "gasCost": {
+            "gasBumpEstimate": "0",
+            "gasPriceEstimate": "0"
+          }
+        },
+        "postInteractionData": {
+          "whitelist": {
+            "0": {
+              "delay": "0",
+              "addressHalf": "66adc2bd50b1b9485a0e"
+            }
+          },
+          "bankFee": "0",
+          "resolvingStartTime": "0"
+        },
+        "builder": {
+          "makerAssetSuffix": "0x",
+          "takerAssetSuffix": "0x",
+          "makingAmountData": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e000000000000006887c6ac000078000000",
+          "takingAmountData": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e000000000000006887c6ac000078000000",
+          "predicate": "0x",
+          "makerPermit": "0x",
+          "preInteraction": "0x",
+          "postInteraction": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e0000000066adc2bd50b1b9485a0e000008",
+          "customData": "0x"
+        },
+        "hashLockInfo": {
+          "value": "0x8315de3a561f3447be0da5bce7c13a5b2a058fb1329eb0353b5f4292c3da44e9"
+        },
+        "dstChainId": 8453,
+        "dstToken": {
+          "val": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        },
+        "srcSafetyDeposit": "1000000000000000",
+        "dstSafetyDeposit": "1000000000000000",
+        "timeLocks": {
+          "_srcWithdrawal": "10",
+          "_srcPublicWithdrawal": "120",
+          "_srcCancellation": "121",
+          "_srcPublicCancellation": "122",
+          "_dstWithdrawal": "10",
+          "_dstPublicWithdrawal": "100",
+          "_dstCancellation": "101",
+          "_deployedAt": "0"
+        }
+      }
+    }
+  },
+  "orderHash": "0xbac96bbb39010805c9bcb5d2be11a1ddfa2c7cf2fafbfe7a3c195c4045031443",
+  "signature": "0x123",
+  "srcChainId": 1
+}

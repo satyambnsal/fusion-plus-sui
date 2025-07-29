@@ -1,0 +1,29 @@
+{
+  "name": "eth-sui-relayer",
+  "author": {
+    "name": "Satyam Bansal",
+    "email": "satyamsgsits1994@gmail.com"
+  },
+  "dependencies": {
+    "@1inch/cross-chain-sdk": "^0.1.15",
+    "@1inch/fusion-sdk": "^2.3.5",
+    "cors": "^2.8.5",
+    "ethers": "^6.15.0",
+    "express": "^5.1.0",
+    "morgan": "^1.10.1",
+    "swagger-autogen": "^2.23.7",
+    "swagger-ui-express": "^5.0.1",
+    "typescript": "^5.8.3",
+    "web3": "^4.16.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/morgan": "^1.9.10",
+    "@types/swagger-ui-express": "^4.1.8",
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
