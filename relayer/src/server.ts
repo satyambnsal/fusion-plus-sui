@@ -4,9 +4,12 @@ import morgan from 'morgan';
 import swaggerUi from 'swagger-ui-express';
 import relayerRoutes from './routes/relayer';
 import resolverRoutes from './routes/resolver';
-
+import quoterRoutes from './routes/quote'
+import { db } from './db'
 const app = express();
 const port = process.env.PORT || 3004;
+
+
 
 app.use(cors());
 app.use(express.json());
@@ -17,6 +20,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerFile));
 
 app.use('/relayer', relayerRoutes);
 app.use('/resolver', resolverRoutes);
+app.use('/quoter', quoterRoutes)
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
