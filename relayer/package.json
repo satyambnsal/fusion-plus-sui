@@ -4,16 +4,21 @@
     "name": "Satyam Bansal",
     "email": "satyamsgsits1994@gmail.com"
   },
+  "scripts": {
+    "dev": "bun --watch run src/server.ts"
+  },
   "dependencies": {
     "@1inch/cross-chain-sdk": "^0.1.15",
     "@1inch/fusion-sdk": "^2.3.5",
     "cors": "^2.8.5",
     "ethers": "^6.15.0",
     "express": "^5.1.0",
+    "lowdb": "^7.0.1",
     "morgan": "^1.10.1",
     "swagger-autogen": "^2.23.7",
     "swagger-ui-express": "^5.0.1",
     "typescript": "^5.8.3",
+    "uuid": "^11.1.0",
     "web3": "^4.16.0"
   },
   "devDependencies": {
