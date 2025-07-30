@@ -17,13 +17,13 @@ const quoteSchema = z.object({
 
 const getExchangeRate = (srcToken: string, dstToken: string): number => {
   // TODO: Implement more realistic exchange rate logic here
-  return 1;
+  return 1.5;
 };
 
 
 const calculateQuote = (amount: string, exchangeRate: number): Partial<QuoterResponse> => {
   const srcTokenAmount = amount;
-  const dstTokenAmount = (BigInt(amount) * BigInt(exchangeRate)).toString();
+  const dstTokenAmount = (Number(amount) * Number(exchangeRate)).toString();
 
   return {
     srcTokenAmount,
