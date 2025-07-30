@@ -1,1 +1,34 @@
 # Cross chain swap between Sui and Base chain using Fusion Plus API
+
+
+
+
+
+# CLI Commands
+
+1. Mint Silver coin to wallet address
+```
+sui client call --function mint --module silver --package 0xe33c8ada01d0c54b83546a768bf35b9af658502b59fa03c20793f832a91098d5 --args 0x4dfb330cf192396e03f988df495eb567de8f5176c080a9b8472813436ca2829c 100000000000000 0x45abe1b325d24ee32f0318fd8706b757db4e22f89fa5ba53203e7da0f2d10eb1
+```
+
+
+# Deployed Contracts
+
+
+1. Silver coin on Sui Testnet
+package Id
+0xe33c8ada01d0c54b83546a768bf35b9af658502b59fa03c20793f832a91098d5
+
+Treasury cap object
+0x4dfb330cf192396e03f988df495eb567de8f5176c080a9b8472813436ca2829c
+
+Coin Address: 0x2::coin::Coin<0xe33c8ada01d0c54b83546a768bf35b9af658502b59fa03c20793f832a91098d5
+
+
+**Swap Contract**
+Package ID: 0x275626d26726ad0d4bddc89c29120a97411207223d01a549438092d003ecc8bb
+Swap Registry: 0xdf92792583d16d20b05d720c7f5da65adcdb8f7ef5b084a6295e1d799345b9d1
+
+# Open Questions
+
+- [] Deploy Senku Coin

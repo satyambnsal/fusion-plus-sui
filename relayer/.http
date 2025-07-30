@@ -1,6 +1,21 @@
+
+
+### Get Quote
+POST http://localhost:3004/quoter/quote/receive
+content-type: application/json
+
+{
+  "srcChain": 11155111,
+  "dstChain": 8453,
+  "srcTokenAddress": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+  "dstTokenAddress": "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
+  "amount": "100000000000000000",
+  "walletAddress": "0x00000000219ab540356cbb839cbe05303d7705fa"
+}
+
 ### Announce Order
 
-POST http://localhost:3000/relayer/createOrder
+POST http://localhost:3004/relayer/createOrder
 content-type: application/json
 
 {
@@ -9,18 +24,18 @@ content-type: application/json
   "takingAmount": "1000000",
   "makerAsset": "0x51B6c8FAb037fBf365CF43A02c953F2305e70bb4",
   "takerAsset": "0x0000000000000000000000000000000000000000",
-  "srcChainId": 1,
+  "srcChainId": 11155111,
   "dstChainId": 8453,
   "secret": "my_secret_password_for_swap_test"
 }
 
 
 ### Get Health
-GET http://localhost:3000/health
+GET http://localhost:3004/health
 
 
 ### Get Quote
-GET http://localhost:3000/relayer/getQuote
+GET http://localhost:3004/relayer/getQuote
     ?srcTokenAddress=0x51B6c8FAb037fBf365CF43A02c953F2305e70bb4
     &dstTokenAddress=0x0000000000000000000000000000000000000000
     &srcChainId=11155111
@@ -31,161 +46,21 @@ Content-Type: application/json
 
 
 ### Fill order
-POST http://localhost:3000/relayer/fillOrder
+POST http://localhost:3004/relayer/fillOrder
 content-type: application/json
 
 {
-   "order": {
-    "inner": {
-      "settlementExtensionContract": {
-        "val": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e"
-      },
-      "inner": {
-        "extension": {
-          "makerAssetSuffix": "0x",
-          "takerAssetSuffix": "0x",
-          "makingAmountData": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e000000000000006887c6ac000078000000",
-          "takingAmountData": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e000000000000006887c6ac000078000000",
-          "predicate": "0x",
-          "makerPermit": "0x",
-          "preInteraction": "0x",
-          "postInteraction": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e0000000066adc2bd50b1b9485a0e0000088315de3a561f3447be0da5bce7c13a5b2a058fb1329eb0353b5f4292c3da44e900000000000000000000000000000000000000000000000000000000000021050000000000000000000000000000000000000000000000000000000000000000000000000000000000038d7ea4c68000000000000000000000038d7ea4c680000000000000000065000000640000000a0000007a00000079000000780000000a",
-          "customData": "0x"
-        },
-        "makerAsset": {
-          "val": "0x51b6c8fab037fbf365cf43a02c953f2305e70bb4"
-        },
-        "takerAsset": {
-          "val": "0xda0000d4000015a526378bb6fafc650cea5966f8"
-        },
-        "makingAmount": "1000000",
-        "takingAmount": "1000000",
-        "_salt": "463735918316295014385478758263107428003816802617848",
-        "maker": {
-          "val": "0xaf8ae7a70f3e0158d4587b642e6d60c9da8faa1d"
-        },
-        "receiver": {
-          "val": "0x0000000000000000000000000000000000000000"
-        },
-        "makerTraits": {
-          "value": {
-            "value": "62419173104490761595518734106704108366169052948734564286747269145615763767296"
-          }
-        }
-      },
-      "fusionExtension": {
-        "address": {
-          "val": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e"
-        },
-        "auctionDetails": {
-          "startTime": "1753728684",
-          "initialRateBump": "0",
-          "duration": "120",
-          "points": {},
-          "gasCost": {
-            "gasBumpEstimate": "0",
-            "gasPriceEstimate": "0"
-          }
-        },
-        "postInteractionData": {
-          "whitelist": {
-            "0": {
-              "delay": "0",
-              "addressHalf": "66adc2bd50b1b9485a0e"
-            }
-          },
-          "bankFee": "0",
-          "resolvingStartTime": "0"
-        },
-        "builder": {
-          "makerAssetSuffix": "0x",
-          "takerAssetSuffix": "0x",
-          "makingAmountData": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e000000000000006887c6ac000078000000",
-          "takingAmountData": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e000000000000006887c6ac000078000000",
-          "predicate": "0x",
-          "makerPermit": "0x",
-          "preInteraction": "0x",
-          "postInteraction": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e0000000066adc2bd50b1b9485a0e000008",
-          "customData": "0x"
-        },
-        "hashLockInfo": {
-          "value": "0x8315de3a561f3447be0da5bce7c13a5b2a058fb1329eb0353b5f4292c3da44e9"
-        },
-        "dstChainId": 8453,
-        "dstToken": {
-          "val": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-        },
-        "srcSafetyDeposit": "1000000000000000",
-        "dstSafetyDeposit": "1000000000000000",
-        "timeLocks": {
-          "_srcWithdrawal": "10",
-          "_srcPublicWithdrawal": "120",
-          "_srcCancellation": "121",
-          "_srcPublicCancellation": "122",
-          "_dstWithdrawal": "10",
-          "_dstPublicWithdrawal": "100",
-          "_dstCancellation": "101",
-          "_deployedAt": "0"
-        }
-      },
-      "escrowExtension": {
-        "address": {
-          "val": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e"
-        },
-        "auctionDetails": {
-          "startTime": "1753728684",
-          "initialRateBump": "0",
-          "duration": "120",
-          "points": {},
-          "gasCost": {
-            "gasBumpEstimate": "0",
-            "gasPriceEstimate": "0"
-          }
-        },
-        "postInteractionData": {
-          "whitelist": {
-            "0": {
-              "delay": "0",
-              "addressHalf": "66adc2bd50b1b9485a0e"
-            }
-          },
-          "bankFee": "0",
-          "resolvingStartTime": "0"
-        },
-        "builder": {
-          "makerAssetSuffix": "0x",
-          "takerAssetSuffix": "0x",
-          "makingAmountData": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e000000000000006887c6ac000078000000",
-          "takingAmountData": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e000000000000006887c6ac000078000000",
-          "predicate": "0x",
-          "makerPermit": "0x",
-          "preInteraction": "0x",
-          "postInteraction": "0xdf6cfc0656c1d60719df66adc2bd50b1b9485a0e0000000066adc2bd50b1b9485a0e000008",
-          "customData": "0x"
-        },
-        "hashLockInfo": {
-          "value": "0x8315de3a561f3447be0da5bce7c13a5b2a058fb1329eb0353b5f4292c3da44e9"
-        },
-        "dstChainId": 8453,
-        "dstToken": {
-          "val": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-        },
-        "srcSafetyDeposit": "1000000000000000",
-        "dstSafetyDeposit": "1000000000000000",
-        "timeLocks": {
-          "_srcWithdrawal": "10",
-          "_srcPublicWithdrawal": "120",
-          "_srcCancellation": "121",
-          "_srcPublicCancellation": "122",
-          "_dstWithdrawal": "10",
-          "_dstPublicWithdrawal": "100",
-          "_dstCancellation": "101",
-          "_deployedAt": "0"
-        }
-      }
-    }
+ "order":  {
+    "maker": "0xaf8ae7a70f3e0158d4587b642e6d60c9da8faa1d",
+    "makerAsset": "0x51b6c8fab037fbf365cf43a02c953f2305e70bb4",
+    "takerAsset": "0xda0000d4000015a526378bb6fafc650cea5966f8",
+    "makerTraits": "62419173104490761595518734106691273372879520382910137454243478530653018914816",
+    "salt": "337487395921821577904722616990383165454094561145539",
+    "makingAmount": "1000000",
+    "takingAmount": "1000000",
+    "receiver": "0x0000000000000000000000000000000000000000"
   },
-  "orderHash": "0xbac96bbb39010805c9bcb5d2be11a1ddfa2c7cf2fafbfe7a3c195c4045031443",
-  "signature": "0x123",
-  "srcChainId": 1
+  "signature": "0x6cb1d0e47db5d6ece3c060ceb7edb9ed99302759ec9a6a632bba93fe126090c141bd080f33353758df03dcfc637828c3a5082d65477d65e536921251eca8a5fb1c",
+  "extension": "0x0000010f0000004a0000004a0000004a0000004a000000250000000000000000d3e99b1622a45153f087173e904296e7b6e357df000000000000006888b1cc000078000000d3e99b1622a45153f087173e904296e7b6e357df000000000000006888b1cc000078000000d3e99b1622a45153f087173e904296e7b6e357df00000000502ea634d146790ca4a60000088315de3a561f3447be0da5bce7c13a5b2a058fb1329eb0353b5f4292c3da44e900000000000000000000000000000000000000000000000000000000000021050000000000000000000000000000000000000000000000000000000000000000000000000000000000038d7ea4c68000000000000000000000038d7ea4c680000000000000000065000000640000000a0000007a00000079000000780000000a",
+  "srcChainId": 11155111
 }
