@@ -15,6 +15,7 @@ import { uint8ArrayToHex } from '@1inch/byte-utils';
 import { provider, ethereumConfig } from '../config.js';
 import { Resolver as EthereumResolverContract } from '../lib/resolver.js';
 import { Wallet } from '../lib/wallet.js';
+import { db } from '../db'
 
 
 const router = express.Router();
@@ -59,6 +60,7 @@ router.post('/createOrder', async (req, res) => {
             ]
         });
     }
+
     try {
         const secretBytes = ethers.toUtf8Bytes(secret);
         const finalSecret = uint8ArrayToHex(secretBytes)
@@ -114,7 +116,13 @@ router.post('/createOrder', async (req, res) => {
         const typedData = order.getTypedData(srcChainId)
         const extension = order.extension.encode()
 
-        res.json({ success: true, order: order.build(), typedData, extension })
+        const orderHash = order.getOrderHash(srcChainId)
+        const limitOrderV4 = order.build();
+        await db.data.orders.push({
+            limitOrderV4, orderHash, extension
+        });
+        await db.write();
+        res.json({ success: true, limitOrderV4, typedData, extension })
     } catch (e: any) {
         return res.status(400).json({ error: 'Failed to create order', details: e.message });
     }

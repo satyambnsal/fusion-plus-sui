@@ -1,3 +1,5 @@
+import type { LimitOrderV4Struct } from "@1inch/cross-chain-sdk";
+
 export interface Point {
   delay: number;
   coefficient: number;
@@ -67,4 +69,11 @@ export interface QuoterResponse {
   recommendedPreset: string;
   prices: Prices;
   volume: Volume;
+}
+
+
+export type SerializedOrder = {
+  limitOrderV4: LimitOrderV4Struct,
+  extension: string,
+  orderHash: string
 }

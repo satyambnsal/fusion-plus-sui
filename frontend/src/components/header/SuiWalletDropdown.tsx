@@ -93,7 +93,6 @@ export const SuiWalletDropdown = () => {
         </div>
 
         <DropdownMenuSeparator className="bg-[#383838]" />
-
         <DropdownMenuItem
           onClick={handleCopy}
           className="cursor-pointer flex items-center gap-2 text-gray-300 hover:text-[#558EB4] focus:text-[#558EB4] hover:bg-[#1a1b1f] focus:bg-[#1a1b1f] rounded-lg px-4 py-2 transition-colors"

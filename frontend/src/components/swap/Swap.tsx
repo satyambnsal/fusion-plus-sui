@@ -12,6 +12,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useAccount } from 'wagmi'
+import { HashLock, PresetEnum } from '@1inch/cross-chain-sdk'
+import { randomBytes } from 'ethers'
+import { uint8ArrayToHex } from '@1inch/byte-utils'
 
 const truncateAddress = (address: string) => {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
@@ -19,76 +23,37 @@ const truncateAddress = (address: string) => {
 
 const tokens = [
   {
-    symbol: 'ETH',
-    name: 'Ethereum',
+    symbol: 'SBL',
+    name: 'Sbl token',
     icon: '⟠',
     color: 'text-blue-400',
     balance: '2.5431',
-    address: '0x0000000000000000000000000000000000000000',
+    address: '0x51B6c8FAb037fBf365CF43A02c953F2305e70bb4',
+    chainId: 11155111,
+    decimals: 9,
   },
   {
-    symbol: 'BTC',
-    name: 'Bitcoin',
+    symbol: 'SILVER',
+    name: 'Silver',
+    decimals: 9,
     icon: '₿',
     color: 'text-orange-400',
     balance: '0.1234',
-    address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',
-  },
-  {
-    symbol: 'USDC',
-    name: 'USD Coin',
-    icon: '◉',
-    color: 'text-blue-500',
-    balance: '1,250.00',
-    address: '0xA0b86a33E6441b8435b662303c0f218C8c7c8e8e',
-  },
-  {
-    symbol: 'USDT',
-    name: 'Tether',
-    icon: '₮',
-    color: 'text-green-400',
-    balance: '890.50',
-    address: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
-  },
-  {
-    symbol: 'SOL',
-    name: 'Solana',
-    icon: '◎',
-    color: 'text-purple-400',
-    balance: '45.67',
-    address: '0xD31a59c85aE9D8edEFeC411D448f90841571b89c',
-  },
-  {
-    symbol: 'MATIC',
-    name: 'Polygon',
-    icon: '⬟',
-    color: 'text-purple-500',
-    balance: '1,890.23',
-    address: '0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0',
-  },
-  {
-    symbol: 'LINK',
-    name: 'Chainlink',
-    icon: '⬢',
-    color: 'text-blue-600',
-    balance: '78.90',
-    address: '0x514910771AF9Ca656af840dff83E8264EcF986CA',
-  },
-  {
-    symbol: 'UNI',
-    name: 'Uniswap',
-    icon: '🦄',
-    color: 'text-pink-400',
-    balance: '156.78',
-    address: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984',
+    address: '0x0000000000000000000000000000000000000000',
+    chainId: 8453,
   },
 ]
 
+const getTokenData = (address: string) => {
+  return tokens.find((token) => token.address === address) || tokens[0]
+}
+
 export default function Component() {
-  const [fromToken, setFromToken] = useState('ETH')
-  const [toToken, setToToken] = useState('USDC')
+  const [fromToken, setFromToken] = useState(tokens[0].address)
+  const [toToken, setToToken] = useState(tokens[1].address)
   const [fromAmount, setFromAmount] = useState('')
   const [toAmount, setToAmount] = useState('')
+  const { address, isConnected } = useAccount()
 
   const handleSwapTokens = () => {
     const tempToken = fromToken
@@ -99,10 +64,71 @@ export default function Component() {
     setToAmount(tempAmount)
   }
 
-  const getTokenData = (symbol: string) => {
-    return tokens.find((token) => token.symbol === symbol) || tokens[0]
-  }
+  const handleSwap = async () => {
+    console.log('Address', address)
+    const from = getTokenData(fromToken)
+    const to = getTokenData(toToken)
+    const amount = Number(fromAmount) * 10 ** from.decimals
+    console.log({ from, to, fromAmount })
 
+    try {
+      // Step 1: Call the quoter API
+      const response = await fetch('http://localhost:3004/quoter/quote/receive', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          srcChain: from.chainId,
+          dstChain: to.chainId,
+          srcTokenAddress: from.address,
+          dstTokenAddress: to.address,
+          amount: amount.toString(),
+          walletAddress: address,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Quoter API error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      console.log('Swap Response:', data)
+
+      const preset = PresetEnum.fast
+      const takingAmount = data.presets[preset].startAmount
+      const secret = 'my_secret_password_for_swap_test'
+
+      const orderResponse = await fetch('http://localhost:3004/relayer/createOrder', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          maker: address, // User's wallet address
+          makingAmount: amount.toString(), // Amount from the input
+          takingAmount: takingAmount.toString(), // From swap response
+          makerAsset: from.address, // Source token address
+          takerAsset: to.address, // Destination token address
+          srcChainId: from.chainId, // Source chain ID
+          dstChainId: to.chainId, // Destination chain ID
+          secret, // 32-byte hex-encoded secret
+        }),
+      })
+
+      if (!orderResponse.ok) {
+        throw new Error(`CreateOrder API error! status: ${orderResponse.status}`)
+      }
+
+      const orderData = await orderResponse.json()
+      console.log('CreateOrder Response:', orderData)
+
+      return { quote: data, order: orderData } // Return both responses for further handling
+    } catch (error) {
+      console.error('Error in handleSwap:', error)
+      throw error // Rethrow for upstream handling
+    }
+  }
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -117,10 +143,7 @@ export default function Component() {
               </div>
               <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
                 <div className="flex items-center gap-3">
-                  <Select
-                    value={fromToken}
-                    onValueChange={setFromToken}
-                  >
+                  <Select value={fromToken} onValueChange={setFromToken}>
                     <SelectTrigger className="w-32 bg-gray-700 border-gray-600 text-white">
                       <SelectValue />
                     </SelectTrigger>
@@ -128,7 +151,7 @@ export default function Component() {
                       {tokens.map((token) => (
                         <SelectItem
                           key={token.symbol}
-                          value={token.symbol}
+                          value={token.address}
                           className="text-white hover:bg-gray-700"
                         >
                           <div className="flex items-center gap-2">
@@ -179,10 +202,7 @@ export default function Component() {
               </div>
               <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
                 <div className="flex items-center gap-3">
-                  <Select
-                    value={toToken}
-                    onValueChange={setToToken}
-                  >
+                  <Select value={toToken} onValueChange={setToToken}>
                     <SelectTrigger className="w-32 bg-gray-700 border-gray-600 text-white">
                       <SelectValue />
                     </SelectTrigger>
@@ -190,7 +210,7 @@ export default function Component() {
                       {tokens.map((token) => (
                         <SelectItem
                           key={token.symbol}
-                          value={token.symbol}
+                          value={token.address}
                           className="text-white hover:bg-gray-700"
                         >
                           <div className="flex items-center gap-2">
@@ -223,10 +243,10 @@ export default function Component() {
 
             <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 space-y-2">
               <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-400">Rate</span>
+                {/* <span className="text-gray-400">Rate</span>
                 <span className="text-white">
                   1 {fromToken} = 1,234.56 {toToken}
-                </span>
+                </span> */}
               </div>
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-400">Network Fee</span>
@@ -240,7 +260,7 @@ export default function Component() {
 
             <Button
               className="w-full h-14 bg-white text-black hover:bg-white/80 hover:text-black/80 font-semibold text-lg rounded-xl transition-all duration-200"
-              disabled={!fromAmount || !toAmount}
+              onClick={handleSwap}
             >
               {!fromAmount || !toAmount ? 'Enter Amount' : 'Swap Tokens'}
             </Button>

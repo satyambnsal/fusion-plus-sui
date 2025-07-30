@@ -14,7 +14,6 @@ export const Header = () => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 0)
     }
-
     window.addEventListener('scroll', handleScroll)
 
     return () => window.removeEventListener('scroll', handleScroll)
@@ -29,10 +28,7 @@ export const Header = () => {
     >
       <div className="max-w-full mx-auto flex items-center p-[11px] xl:p-4 justify-between">
         <div className="flex items-center">
-          <Link
-            className="block mr-1 xl:mr-4 flex-shrink-0"
-            href="/"
-          >
+          <Link className="block mr-1 xl:mr-4 flex-shrink-0" href="/">
             <div className="relative w-8 h-11">
               <ArrowDownUpIcon />
             </div>
