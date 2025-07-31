@@ -13,9 +13,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useAccount } from 'wagmi'
-import { HashLock, PresetEnum } from '@1inch/cross-chain-sdk'
+import { EIP712TypedData, HashLock, LimitOrderV4Struct, PresetEnum } from '@1inch/cross-chain-sdk'
 import { randomBytes } from 'ethers'
 import { uint8ArrayToHex } from '@1inch/byte-utils'
+import { requestEthereumSignature } from '@/lib/utils'
 
 const truncateAddress = (address: string) => {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
@@ -54,6 +55,12 @@ export default function Component() {
   const [fromAmount, setFromAmount] = useState('')
   const [toAmount, setToAmount] = useState('')
   const { address, isConnected } = useAccount()
+  const [order, setOrder] = useState<{
+    limitOrderV4: LimitOrderV4Struct
+    extension: string
+    typedData: EIP712TypedData
+    success: boolean
+  } | null>(null)
 
   const handleSwapTokens = () => {
     const tempToken = fromToken
@@ -121,12 +128,40 @@ export default function Component() {
       }
 
       const orderData = await orderResponse.json()
+      setOrder(orderData)
       console.log('CreateOrder Response:', orderData)
 
       return { quote: data, order: orderData } // Return both responses for further handling
     } catch (error) {
       console.error('Error in handleSwap:', error)
       throw error // Rethrow for upstream handling
+    }
+  }
+
+  const handleSignOrder = async () => {
+    const from = getTokenData(fromToken)
+    if (order && address) {
+      console.log('Address', address)
+      const signature = await requestEthereumSignature(order?.typedData, address)
+      console.log('signature', signature)
+
+      const orderResponse = await fetch('http://localhost:3004/relayer/fillOrder', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          signature,
+          extension: order.extension,
+          srcChainId: from.chainId,
+          order: order.limitOrderV4,
+        }),
+      })
+
+      if (!orderResponse.ok) {
+        throw new Error(`CreateOrder API error! status: ${orderResponse.status}`)
+      }
+      console.log('fill order response', orderResponse)
     }
   }
   return (
@@ -242,12 +277,7 @@ export default function Component() {
             </div>
 
             <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 space-y-2">
-              <div className="flex justify-between items-center text-sm">
-                {/* <span className="text-gray-400">Rate</span>
-                <span className="text-white">
-                  1 {fromToken} = 1,234.56 {toToken}
-                </span> */}
-              </div>
+              <div className="flex justify-between items-center text-sm"></div>
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-400">Network Fee</span>
                 <span className="text-white">~$2.50</span>
@@ -264,6 +294,14 @@ export default function Component() {
             >
               {!fromAmount || !toAmount ? 'Enter Amount' : 'Swap Tokens'}
             </Button>
+            {order && (
+              <Button
+                className="w-full h-14 bg-white text-black hover:bg-white/80 hover:text-black/80 font-semibold text-lg rounded-xl transition-all duration-200"
+                onClick={handleSignOrder}
+              >
+                Sign Order
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>
