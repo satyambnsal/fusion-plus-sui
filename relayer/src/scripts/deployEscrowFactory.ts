@@ -78,6 +78,6 @@ async function deploy(
 
 
 deployEscrowAndResolver().catch(err => {
-
+  console.log(err)
 })
 
