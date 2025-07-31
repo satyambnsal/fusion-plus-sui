@@ -14,3 +14,15 @@ export function serializeOrder(order: CrossChainOrder) {
   }
   return serialized;
 }
+
+
+export const hexToU8Array = (hexStr: string): Uint8Array => {
+  const hex = hexStr.startsWith('0x') ? hexStr.slice(2) : hexStr;
+
+  const hexBytes = hex.match(/.{1,2}/g);
+  if (!hexBytes) {
+    throw new Error("Invalid hex string");
+  }
+
+  return new Uint8Array(hexBytes.map(byte => parseInt(byte, 16)));
+};

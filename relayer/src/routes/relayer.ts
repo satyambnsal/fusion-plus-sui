@@ -6,10 +6,10 @@ import {
     CrossChainOrder,
     HashLock,
     TimeLocks,
-    TakerTraits,
     randBigInt,
-    AmountMode,
-    Extension
+    Extension,
+    TakerTraits,
+    AmountMode
 } from '@1inch/cross-chain-sdk';
 import { uint8ArrayToHex } from '@1inch/byte-utils';
 import { provider, ethereumConfig, SUI_CONFIG, suiClient } from '../config.js';
@@ -17,22 +17,14 @@ import { Resolver as EthereumResolverContract } from '../lib/resolver.js';
 import { Wallet } from '../lib/wallet.js';
 import { db } from '../db'
 import { getKeypair } from '../lib/privKey.js';
-import { findCoinsOfType, fundDstEscrow, getBalance } from '../lib/sui-handlers.js';
+import { claimFunds, findCoinsOfType, fundDstEscrow, getBalance } from '../lib/sui-handlers.js';
+import { sleep } from 'bun';
 
 
-console.log(SUI_CONFIG)
 const router = express.Router();
-// const userPk = '7764b03c4d3eb019cc0ec0630429622593b8d7625b83a109e9f2279828a88a66'
-// let ethereumUser = new Wallet(userPk, provider)
-
-
 
 const UINT_40_MAX = 2n ** 40n - 1n;
 
-/**
- * POST /announceOrder
- * Announces a cross-chain swap order to the relayer using 1inch Cross-Chain SDK
- */
 router.post('/createOrder', async (req, res) => {
     const {
         maker,
@@ -42,10 +34,9 @@ router.post('/createOrder', async (req, res) => {
         takerAsset,
         secret,
         srcChainId,
-        dstChainId       // Hash of the secret for escrow
+        dstChainId
     } = req.body;
 
-    // Step 1: Validate input parameters
     if (
         !maker ||
         !srcChainId ||
@@ -76,21 +67,21 @@ router.post('/createOrder', async (req, res) => {
             {
                 salt: randBigInt(1000n),
                 maker: new Address(maker),
-                makingAmount: BigInt(makingAmount), // 1 USDC
-                takingAmount: BigInt(takingAmount), // Equivalent amount on Aptos
+                makingAmount: BigInt(makingAmount),
+                takingAmount: BigInt(takingAmount),
                 makerAsset: new Address(makerAsset),
-                takerAsset: new Address(takerAsset) // Placeholder for Aptos token
+                takerAsset: new Address(takerAsset)
             },
             {
                 hashLock: HashLock.forSingleFill(finalSecret),
                 timeLocks: TimeLocks.new({
-                    srcWithdrawal: 10n,           // 10sec finality lock
-                    srcPublicWithdrawal: 120n,    // 2min private withdrawal
-                    srcCancellation: 121n,        // 1sec public withdrawal
-                    srcPublicCancellation: 122n,  // 1sec private cancellation
-                    dstWithdrawal: 10n,           // 10sec finality lock
-                    dstPublicWithdrawal: 100n,    // 100sec private withdrawal
-                    dstCancellation: 101n         // 1sec public withdrawal
+                    srcWithdrawal: 10n,
+                    srcPublicWithdrawal: 120n,
+                    srcCancellation: 121n,
+                    srcPublicCancellation: 122n,
+                    dstWithdrawal: 10n,
+                    dstPublicWithdrawal: 100n,
+                    dstCancellation: 101n
                 }),
                 srcChainId: 1,
                 dstChainId,
@@ -131,14 +122,12 @@ router.post('/createOrder', async (req, res) => {
     } catch (e: any) {
         return res.status(400).json({ error: 'Failed to create order', details: e.message });
     }
-
 });
 
 
 
 router.post('/fillOrder', async (req, res) => {
     const { order, signature, srcChainId, extension, secretHash } = req.body
-    console.log({ secretHash })
 
     const orderInstance = CrossChainOrder.fromDataAndExtension(order, Extension.decode(extension))
     const orderHash = orderInstance.getOrderHash(srcChainId)
@@ -163,25 +152,28 @@ router.post('/fillOrder', async (req, res) => {
     // )
 
     // console.log(`[Ethereum] Order ${orderHash} filled for ${fillAmount} USDC in tx: ${orderFillHash}`)
-    console.log(SUI_CONFIG.RESOLVER_ADDRESS)
     const resolverCoins = await findCoinsOfType(suiClient, SUI_CONFIG.SILVER_COIN_ADDRESS, SUI_CONFIG.RESOLVER_ADDRESS);
     if (resolverCoins.length === 0) {
         console.log('❌ Resolver has no coins of the required type');
         return;
     }
-    // const secretHash1 = ethers.toUtf8Bytes(secretHash);
-    // // const secretHash1 = new Uint8Array(ethers.getBytes(ethers.keccak256(secret)));
-    const secret = ethers.toUtf8Bytes('my_secret_password_for_swap_test');
-    const secretHash1 = new Uint8Array(ethers.getBytes(ethers.keccak256(secret)));
+
+    const secretHashU8 = new Uint8Array(ethers.getBytes(secretHash))
+
+    console.log("before funding destination escrow")
+    console.log(await getBalance(SUI_CONFIG.RESOLVER_ADDRESS));
     console.log('✅ Found resolver coins:', resolverCoins[0].coinObjectId);
-    // const params = [SUI_CONFIG.RESOLVER_KEYPAIR, SUI_CONFIG.SILVER_COIN_ADDRESS, Number(1), Number(orderInstance.deadline), secretHash1, resolverCoins[0].coinObjectId]
-    // console.log({ params })
-    // await fundDstEscrow(suiClient, ...params)
-    const a = [SUI_CONFIG.SILVER_COIN_ADDRESS, 1, 300000 * 1e3, secretHash1, resolverCoins[0].coinObjectId]
-    console.log({ a })
-    const resolverKeypair = getKeypair("suiprivkey1qqhrwjkf4npr99pdp57ldkce8tuxlvlyedlkpvt9lj8w0prp35qus3pydtq")
-    await fundDstEscrow(suiClient, resolverKeypair, ...a)
-    console.log("After funding destination escrow")
+    const response = await fundDstEscrow(suiClient, SUI_CONFIG.RESOLVER_KEYPAIR, SUI_CONFIG.SILVER_COIN_ADDRESS, Number(takingAmount), 300000 * 1e3, secretHashU8, resolverCoins[0].coinObjectId)
+
+
+    console.log("After funding destination escrow", response)
+    console.log(await getBalance(SUI_CONFIG.RESOLVER_ADDRESS));
+    const originalSecret = ethers.toUtf8Bytes("my_secret_password_for_swap_test")
+    await sleep(2000)
+    const claimFundResp = await claimFunds(suiClient, SUI_CONFIG.RESOLVER_KEYPAIR, SUI_CONFIG.SILVER_COIN_ADDRESS, response.orderObjectId, originalSecret)
+    console.log("CLAIM FUND BALANCE", claimFundResp.digest)
+    await sleep(2000)
+    console.log("Fund after claiming balance")
     console.log(await getBalance(SUI_CONFIG.RESOLVER_ADDRESS));
     // const balance = await getEthereumBalances(config.chain.ethereum.tokens.USDC.address);
     // console.log("######### Balance after eth order filled ##########")

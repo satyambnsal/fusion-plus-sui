@@ -7,18 +7,8 @@ import { SUI_CONFIG } from '../config'
 const NETWORK = 'testnet';
 const RPC_URL = getFullnodeUrl('testnet');
 
-// const PACKAGE_ID = process.env.SWAP_PACKAGE_ID || 'YOUR_PACKAGE_ID_HERE';
-// const REGISTRY_OBJECT_ID = process.env.SWAP_REGISTRY_OBJECT_ID || 'YOUR_REGISTRY_OBJECT_ID_HERE';
-// const CLOCK_OBJECT_ID = '0x6';
-// const SILVER_COIN_ADDRESS = process.env.SILVER_COIN_ADDRESS || '0xe33c8ada01d0c54b83546a768bf35b9af658502b59fa03c20793f832a91098d5::silver::SILVER';
-
 
 const client = new SuiClient({ url: RPC_URL });
-// const userKeypair = getKeypair(process.env.USER_PRIVATE_KEY || "")
-// const resolverKeypair = getKeypair(process.env.RESOLVER_PRIVATE_KEY || "")
-// const userAddress = userKeypair.getPublicKey().toSuiAddress()
-// const resolverAddress = resolverKeypair.getPublicKey().toSuiAddress()
-// console.log({ userAddress, resolverAddress });
 
 
 async function executeTransaction(
@@ -53,12 +43,12 @@ async function executeTransaction(
       // }
 
       // Log object changes
-      // if (result.objectChanges && result.objectChanges.length > 0) {
-      //   console.log('📦 Object changes:');
-      //   result.objectChanges.forEach((change, i) => {
-      //     console.log(`  Change ${i}:`, JSON.stringify(change, null, 2));
-      //   });
-      // }
+      if (result.objectChanges && result.objectChanges.length > 0) {
+        // console.log('📦 Object changes:');
+        // result.objectChanges.forEach((change, i) => {
+        //   console.log(`  Change ${i}:`, JSON.stringify(change, null, 2));
+        // });
+      }
 
       return result;
     } else {
@@ -135,7 +125,6 @@ async function announceOrder<T>(
   }
 }
 
-// Fund destination escrow - resolver deposits funds with same secret hash
 async function fundDstEscrow<T>(
   client: SuiClient,
   keypair: GenericKeyPairType,
@@ -150,7 +139,7 @@ async function fundDstEscrow<T>(
   // Split coins if needed
   const [coin] = tx.splitCoins(tx.object(coinObjectId), [amount]);
   const args = [
-    tx.object("0xdf92792583d16d20b05d720c7f5da65adcdb8f7ef5b084a6295e1d799345b9d1"), // registry
+    tx.object(SUI_CONFIG.SWAP_CONTRACT_SUI_REGISTRY_OBJECT_ID), // registry
     coin, // payment
     tx.pure.u64(expirationDurationMs), // expiration_duration_ms
     tx.pure.vector('u8', Array.from(secretHash)), // secret_hash
@@ -159,7 +148,7 @@ async function fundDstEscrow<T>(
   console.log("Coin", coin)
   console.log("Txn args")
   tx.moveCall({
-    target: `${"0x275626d26726ad0d4bddc89c29120a97411207223d01a549438092d003ecc8bb"}::swap_v3::fund_dst_escrow`,
+    target: `${SUI_CONFIG.SWAP_CONTRACT_SUI_PACKAGE_ID}::swap_v3::fund_dst_escrow`,
     typeArguments: [coinType],
     arguments: args,
   });
