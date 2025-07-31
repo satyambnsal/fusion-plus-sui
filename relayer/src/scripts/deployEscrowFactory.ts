@@ -10,8 +10,7 @@ import { ethereumConfig as config } from '../config'
 
 // Deploy EscrowFactory on Ethereum
 async function deployEscrowAndResolver() {
-  const provider = await getProvider(config)
-  console.log("PROVIDER", provider)
+  const provider = await getProvider()
   const deployer = new SignerWallet(config.ownerPrivateKey, provider)
   const ethereumResolverWallet = new SignerWallet(config.resolverPk, provider)
 
@@ -75,9 +74,10 @@ async function deploy(
   return await deployed.getAddress()
 }
 
-/**
- * 
- * deployEscrowAndResolver().catch(err => {
- * 
- * })
- */
+
+
+
+deployEscrowAndResolver().catch(err => {
+
+})
+
