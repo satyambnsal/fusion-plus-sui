@@ -29,3 +29,13 @@ export const requestEthereumSignature = async (typedData: EIP712TypedData, userA
   })
   return signature
 }
+
+
+
+
+export const truncateAddress = (address: string, startLength: number = 6, endLength: number = 4): string => {
+  if (!address || address.length < startLength + endLength) {
+    return address;
+  }
+  return `${address.slice(0, startLength)}...${address.slice(-endLength)}`;
+};

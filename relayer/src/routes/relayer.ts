@@ -138,20 +138,20 @@ router.post('/fillOrder', async (req, res) => {
     const fillAmount = orderInstance.makingAmount
     const takingAmount = orderInstance.takingAmount
 
-    // const { txHash: orderFillHash, blockHash: ethereumDeployBlock } = await ethereumResolverWallet.send(
-    //     resolverContract.deploySrc(
-    //         srcChainId,
-    //         orderInstance,
-    //         signature,
-    //         TakerTraits.default()
-    //             .setExtension(orderInstance.extension)
-    //             .setAmountMode(AmountMode.maker)
-    //             .setAmountThreshold(orderInstance.takingAmount),
-    //         fillAmount
-    //     )
-    // )
+    const { txHash: orderFillHash, blockHash: ethereumDeployBlock } = await ethereumResolverWallet.send(
+        resolverContract.deploySrc(
+            srcChainId,
+            orderInstance,
+            signature,
+            TakerTraits.default()
+                .setExtension(orderInstance.extension)
+                .setAmountMode(AmountMode.maker)
+                .setAmountThreshold(orderInstance.takingAmount),
+            fillAmount
+        )
+    )
 
-    // console.log(`[Ethereum] Order ${orderHash} filled for ${fillAmount} USDC in tx: ${orderFillHash}`)
+    console.log(`[Ethereum] Order ${orderHash} filled for ${fillAmount} USDC in tx: ${orderFillHash}`)
     const resolverCoins = await findCoinsOfType(suiClient, SUI_CONFIG.SILVER_COIN_ADDRESS, SUI_CONFIG.RESOLVER_ADDRESS);
     if (resolverCoins.length === 0) {
         console.log('❌ Resolver has no coins of the required type');

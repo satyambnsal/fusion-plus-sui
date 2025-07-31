@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -13,16 +13,27 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useAccount } from 'wagmi'
-import { EIP712TypedData, HashLock, LimitOrderV4Struct, PresetEnum } from '@1inch/cross-chain-sdk'
+import { EIP712TypedData, LimitOrderV4Struct } from '@1inch/cross-chain-sdk'
 import { randomBytes } from 'ethers'
 import { uint8ArrayToHex } from '@1inch/byte-utils'
-import { requestEthereumSignature } from '@/lib/utils'
+import { requestEthereumSignature, truncateAddress } from '@/lib/utils'
+import { Loader2 } from 'lucide-react'
+import { useDebounce } from 'use-debounce'
+import { Toaster, toast } from 'sonner'
 
-const truncateAddress = (address: string) => {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`
+// Token configuration
+interface Token {
+  symbol: string
+  name: string
+  icon: string
+  color: string
+  balance: string
+  address: string
+  chainId: number
+  decimals: number
 }
 
-const tokens = [
+const tokens: Token[] = [
   {
     symbol: 'SBL',
     name: 'Sbl token',
@@ -45,112 +56,192 @@ const tokens = [
   },
 ]
 
-const getTokenData = (address: string) => {
-  return tokens.find((token) => token.address === address) || tokens[0]
+const getTokenData = (address: string): Token =>
+  tokens.find((token) => token.address === address) || tokens[0]
+
+// API response types
+interface QuoteResponse {
+  presets: {
+    fast: {
+      startAmount: string
+    }
+  }
 }
 
-export default function Component() {
-  const [fromToken, setFromToken] = useState(tokens[0].address)
-  const [toToken, setToToken] = useState(tokens[1].address)
-  const [fromAmount, setFromAmount] = useState('')
-  const [toAmount, setToAmount] = useState('')
-  const { address, isConnected } = useAccount()
-  const [order, setOrder] = useState<{
-    limitOrderV4: LimitOrderV4Struct
-    extension: string
-    typedData: EIP712TypedData
-    success: boolean
-    secretHash: string
-  } | null>(null)
+interface OrderResponse {
+  limitOrderV4: LimitOrderV4Struct
+  extension: string
+  typedData: EIP712TypedData
+  success: boolean
+  secretHash: string
+}
 
-  const handleSwapTokens = () => {
-    const tempToken = fromToken
-    const tempAmount = fromAmount
-    setFromToken(toToken)
-    setToToken(tempToken)
-    setFromAmount(toAmount)
-    setToAmount(tempAmount)
-  }
+// Custom hook for quote fetching
+const useQuote = (
+  fromToken: string,
+  toToken: string,
+  fromAmount: string,
+  walletAddress: string | undefined
+) => {
+  const [quote, setQuote] = useState<QuoteResponse | null>(null)
+  const [isLoadingQuote, setIsLoadingQuote] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  // const { toast } = useToast()
 
-  const handleSwap = async () => {
-    console.log('Address', address)
-    const from = getTokenData(fromToken)
-    const to = getTokenData(toToken)
-    const amount = Number(fromAmount) * 10 ** from.decimals
-    console.log({ from, to, fromAmount })
+  const fetchQuote = useCallback(async () => {
+    if (!fromToken || !toToken || !fromAmount || !walletAddress || Number(fromAmount) <= 0) {
+      setQuote(null)
+      return
+    }
+
+    setIsLoadingQuote(true)
+    setError(null)
 
     try {
-      // Step 1: Call the quoter API
+      const from = getTokenData(fromToken)
+      const amount = Number(fromAmount) * 10 ** from.decimals
       const response = await fetch('http://localhost:3004/quoter/quote/receive', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           srcChain: from.chainId,
-          dstChain: to.chainId,
+          dstChain: getTokenData(toToken).chainId,
           srcTokenAddress: from.address,
-          dstTokenAddress: to.address,
+          dstTokenAddress: getTokenData(toToken).address,
           amount: amount.toString(),
-          walletAddress: address,
+          walletAddress,
         }),
       })
 
       if (!response.ok) {
-        throw new Error(`Quoter API error! status: ${response.status}`)
+        throw new Error(`Quoter API error: ${response.status}`)
       }
 
       const data = await response.json()
-      console.log('Swap Response:', data)
+      setQuote(data)
+    } catch (err) {
+      setError('Failed to fetch quote. Please try again.')
+      toast('Failed to fetch quote. Please try again.')
+    } finally {
+      setIsLoadingQuote(false)
+    }
+  }, [fromToken, toToken, fromAmount, walletAddress, toast])
 
-      const preset = PresetEnum.fast
-      const takingAmount = data.presets[preset].startAmount
+  // Debounce the quote fetching to avoid excessive API calls
+  const [debouncedFromAmount] = useDebounce(fromAmount, 500)
+
+  useEffect(() => {
+    fetchQuote()
+  }, [fromToken, toToken, debouncedFromAmount, walletAddress, fetchQuote])
+
+  // Auto-refresh quote every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (fromToken && toToken && fromAmount && walletAddress) {
+        fetchQuote()
+      }
+    }, 30_000)
+    return () => clearInterval(interval)
+  }, [fromToken, toToken, fromAmount, walletAddress, fetchQuote])
+
+  return { quote, isLoadingQuote, error, fetchQuote }
+}
+
+export default function SwapComponent() {
+  const [fromToken, setFromToken] = useState(tokens[0].address)
+  const [toToken, setToToken] = useState(tokens[1].address)
+  const [fromAmount, setFromAmount] = useState('')
+  const [toAmount, setToAmount] = useState('')
+  const [isSwapping, setIsSwapping] = useState(false)
+  const [order, setOrder] = useState<OrderResponse | null>(null)
+  const { address, isConnected } = useAccount()
+
+  // Use custom hook for quote fetching
+  const {
+    quote,
+    isLoadingQuote,
+    error: quoteError,
+  } = useQuote(fromToken, toToken, fromAmount, address)
+
+  // Update toAmount based on quote
+  useEffect(() => {
+    if (quote && quote.presets.fast.startAmount) {
+      const toTokenData = getTokenData(toToken)
+      const toAmountValue = Number(quote.presets.fast.startAmount) / 10 ** toTokenData.decimals
+      setToAmount(toAmountValue.toFixed(6))
+    } else {
+      setToAmount('')
+    }
+  }, [quote, toToken])
+
+  const handleSwapTokens = () => {
+    const tempToken = fromToken
+    setFromToken(toToken)
+    setToToken(tempToken)
+    setFromAmount(toAmount)
+    setToAmount('')
+    setOrder(null)
+  }
+
+  const handleSwap = async () => {
+    if (!isConnected || !address) {
+      toast('Please connect your wallet.')
+      return
+    }
+
+    if (!quote || !fromAmount || Number(fromAmount) <= 0) {
+      toast.error('Invalid input or no quote available.')
+      return
+    }
+
+    setIsSwapping(true)
+    try {
+      const from = getTokenData(fromToken)
+      const to = getTokenData(toToken)
+      const amount = Number(fromAmount) * 10 ** from.decimals
+      const takingAmount = quote.presets.fast.startAmount
       const secret = 'my_secret_password_for_swap_test'
 
       const orderResponse = await fetch('http://localhost:3004/relayer/createOrder', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          maker: address, // User's wallet address
-          makingAmount: amount.toString(), // Amount from the input
-          takingAmount: takingAmount.toString(), // From swap response
-          makerAsset: from.address, // Source token address
-          takerAsset: to.address, // Destination token address
-          srcChainId: from.chainId, // Source chain ID
-          dstChainId: to.chainId, // Destination chain ID
-          secret, // 32-byte hex-encoded secret
+          maker: address,
+          makingAmount: amount.toString(),
+          takingAmount: takingAmount.toString(),
+          makerAsset: from.address,
+          takerAsset: to.address,
+          srcChainId: from.chainId,
+          dstChainId: to.chainId,
+          secret,
         }),
       })
 
       if (!orderResponse.ok) {
-        throw new Error(`CreateOrder API error! status: ${orderResponse.status}`)
+        throw new Error(`CreateOrder API error: ${orderResponse.status}`)
       }
 
       const orderData = await orderResponse.json()
       setOrder(orderData)
-      console.log('CreateOrder Response:', orderData)
-
-      return { quote: data, order: orderData } // Return both responses for further handling
+      toast.success('Order created successfully. Please sign the order.')
     } catch (error) {
       console.error('Error in handleSwap:', error)
-      throw error // Rethrow for upstream handling
+      toast.error('Failed to create swap order. Please try again.')
+    } finally {
+      setIsSwapping(false)
     }
   }
 
   const handleSignOrder = async () => {
-    const from = getTokenData(fromToken)
-    if (order && address) {
-      console.log('Address', address)
-      const signature = await requestEthereumSignature(order?.typedData, address)
-      console.log('signature', signature)
+    if (!order || !address) return
 
-      const orderResponse = await fetch('http://localhost:3004/relayer/fillOrder', {
+    setIsSwapping(true)
+    try {
+      const from = getTokenData(fromToken)
+      const signature = await requestEthereumSignature(order.typedData, address)
+      const response = await fetch('http://localhost:3004/relayer/fillOrder', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           signature,
           extension: order.extension,
@@ -160,12 +251,25 @@ export default function Component() {
         }),
       })
 
-      if (!orderResponse.ok) {
-        throw new Error(`CreateOrder API error! status: ${orderResponse.status}`)
+      if (!response.ok) {
+        throw new Error(`FillOrder API error: ${response.status}`)
       }
-      console.log('fill order response', orderResponse)
+
+      toast.success('Order signed and filled successfully.')
+      setOrder(null)
+      setFromAmount('')
+      setToAmount('')
+    } catch (error) {
+      console.error('Error in handleSignOrder:', error)
+      toast.error('Failed to sign order. Please try again.')
+    } finally {
+      setIsSwapping(false)
     }
   }
+
+  const isSwapDisabled = !isConnected || !fromAmount || !toAmount || isLoadingQuote || isSwapping
+  const isSignOrderDisabled = !order || isSwapping
+
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -225,6 +329,7 @@ export default function Component() {
                 variant="ghost"
                 size="icon"
                 className="w-10 h-10 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+                disabled={isSwapping}
               >
                 <ArrowUpDown className="w-4 h-4" />
               </Button>
@@ -258,13 +363,18 @@ export default function Component() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Input
-                    type="number"
-                    placeholder="0.0"
-                    value={toAmount}
-                    onChange={(e) => setToAmount(e.target.value)}
-                    className="flex-1 bg-transparent border-none text-right text-xl font-semibold text-white placeholder:text-gray-500 focus-visible:ring-0"
-                  />
+                  <div className="flex-1 relative">
+                    <Input
+                      type="number"
+                      placeholder="0.0"
+                      value={toAmount}
+                      readOnly
+                      className="flex-1 bg-transparent border-none text-right text-xl font-semibold text-white placeholder:text-gray-500 focus-visible:ring-0"
+                    />
+                    {isLoadingQuote && (
+                      <Loader2 className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
+                    )}
+                  </div>
                 </div>
                 <div className="flex justify-between items-center mt-2">
                   <span className="text-xs text-gray-500">{getTokenData(toToken).name}</span>
@@ -279,7 +389,6 @@ export default function Component() {
             </div>
 
             <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 space-y-2">
-              <div className="flex justify-between items-center text-sm"></div>
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-400">Network Fee</span>
                 <span className="text-white">~$2.50</span>
@@ -290,23 +399,37 @@ export default function Component() {
               </div>
             </div>
 
+            {quoteError && <div className="text-red-400 text-sm text-center">{quoteError}</div>}
+
             <Button
               className="w-full h-14 bg-white text-black hover:bg-white/80 hover:text-black/80 font-semibold text-lg rounded-xl transition-all duration-200"
               onClick={handleSwap}
+              disabled={isSwapDisabled}
             >
-              {!fromAmount || !toAmount ? 'Enter Amount' : 'Swap Tokens'}
+              {isSwapping ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : !isConnected ? (
+                'Connect Wallet'
+              ) : !fromAmount ? (
+                'Enter Amount'
+              ) : (
+                'Create Swap Order'
+              )}
             </Button>
+
             {order && (
               <Button
                 className="w-full h-14 bg-white text-black hover:bg-white/80 hover:text-black/80 font-semibold text-lg rounded-xl transition-all duration-200"
                 onClick={handleSignOrder}
+                disabled={isSignOrderDisabled}
               >
-                Sign Order
+                {isSwapping ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Sign Order'}
               </Button>
             )}
           </CardContent>
         </Card>
       </div>
+      <Toaster />
     </div>
   )
 }
