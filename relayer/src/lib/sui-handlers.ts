@@ -2,25 +2,27 @@ import { getFullnodeUrl, SuiClient, type SuiTransactionBlockResponse } from '@my
 import { Transaction } from '@mysten/sui/transactions';
 import { ethers } from 'ethers';
 import { type GenericKeyPairType, getKeypair } from './privKey';
+import { SUI_CONFIG } from '../config'
 
 const NETWORK = 'testnet';
 const RPC_URL = getFullnodeUrl('testnet');
 
-const PACKAGE_ID = process.env.SWAP_PACKAGE_ID || 'YOUR_PACKAGE_ID_HERE';
-const REGISTRY_OBJECT_ID = process.env.SWAP_REGISTRY_OBJECT_ID || 'YOUR_REGISTRY_OBJECT_ID_HERE';
-const CLOCK_OBJECT_ID = '0x6';
-const SILVER_COIN_ADDRESS = process.env.SILVER_COIN_ADDRESS || '0xe33c8ada01d0c54b83546a768bf35b9af658502b59fa03c20793f832a91098d5::silver::SILVER';
+// const PACKAGE_ID = process.env.SWAP_PACKAGE_ID || 'YOUR_PACKAGE_ID_HERE';
+// const REGISTRY_OBJECT_ID = process.env.SWAP_REGISTRY_OBJECT_ID || 'YOUR_REGISTRY_OBJECT_ID_HERE';
+// const CLOCK_OBJECT_ID = '0x6';
+// const SILVER_COIN_ADDRESS = process.env.SILVER_COIN_ADDRESS || '0xe33c8ada01d0c54b83546a768bf35b9af658502b59fa03c20793f832a91098d5::silver::SILVER';
 
 
 const client = new SuiClient({ url: RPC_URL });
-const userKeypair = getKeypair(process.env.USER_PRIVATE_KEY || "")
-const resolverKeypair = getKeypair(process.env.RESOLVER_PRIVATE_KEY || "")
-const userAddress = userKeypair.getPublicKey().toSuiAddress()
-const resolverAddress = resolverKeypair.getPublicKey().toSuiAddress()
-console.log({ userAddress, resolverAddress });
+// const userKeypair = getKeypair(process.env.USER_PRIVATE_KEY || "")
+// const resolverKeypair = getKeypair(process.env.RESOLVER_PRIVATE_KEY || "")
+// const userAddress = userKeypair.getPublicKey().toSuiAddress()
+// const resolverAddress = resolverKeypair.getPublicKey().toSuiAddress()
+// console.log({ userAddress, resolverAddress });
 
 
 async function executeTransaction(
+  client: SuiClient,
   tx: Transaction,
   keypairToUse: GenericKeyPairType,
   description?: string
@@ -72,7 +74,7 @@ async function getBalance(address: string) {
   try {
     const balance = await client.getBalance({
       owner: address,
-      coinType: SILVER_COIN_ADDRESS,
+      coinType: SUI_CONFIG.SILVER_COIN_ADDRESS,
     });
 
     return {
@@ -82,7 +84,7 @@ async function getBalance(address: string) {
   } catch (error: any) {
     console.error('Error getting balance:', error.message);
     return {
-      coinType: SILVER_COIN_ADDRESS,
+      coinType: SUI_CONFIG.SILVER_COIN_ADDRESS,
       totalBalance: '0',
     };
   }
@@ -95,7 +97,8 @@ async function announceOrder<T>(
   minDstAmount: number,
   expirationDurationMs: number,
   secretHash: Uint8Array,
-  coinObjectId: string
+  coinObjectId: string,
+  keypair: GenericKeyPairType
 ) {
   const tx = new Transaction();
 
@@ -103,19 +106,19 @@ async function announceOrder<T>(
   const [coin] = tx.splitCoins(tx.object(coinObjectId), [amount]);
 
   tx.moveCall({
-    target: `${PACKAGE_ID}::swap_v3::announce_order`,
+    target: `${SUI_CONFIG.SWAP_CONTRACT_SUI_PACKAGE_ID}::swap_v3::announce_order`,
     typeArguments: [coinType],
     arguments: [
-      tx.object(REGISTRY_OBJECT_ID),
+      tx.object(SUI_CONFIG.SWAP_CONTRACT_SUI_REGISTRY_OBJECT_ID),
       coin,
       tx.pure.u64(minDstAmount),
       tx.pure.u64(expirationDurationMs),
       tx.pure.vector('u8', Array.from(secretHash)),
-      tx.object(CLOCK_OBJECT_ID)
+      tx.object(SUI_CONFIG.CLOCK_OBJECT_ID)
     ],
   });
 
-  const result = await executeTransaction(tx, userKeypair, 'Announcing order');
+  const result = await executeTransaction(client, tx, keypair, 'Announcing order');
   if (result) {
     const createdObjects = result.objectChanges?.filter(
       (change) => change.type === 'created' && change.objectType.includes('Order')
@@ -134,6 +137,8 @@ async function announceOrder<T>(
 
 // Fund destination escrow - resolver deposits funds with same secret hash
 async function fundDstEscrow<T>(
+  client: SuiClient,
+  keypair: GenericKeyPairType,
   coinType: string,
   amount: number,
   expirationDurationMs: number,
@@ -144,20 +149,22 @@ async function fundDstEscrow<T>(
 
   // Split coins if needed
   const [coin] = tx.splitCoins(tx.object(coinObjectId), [amount]);
-
+  const args = [
+    tx.object("0xdf92792583d16d20b05d720c7f5da65adcdb8f7ef5b084a6295e1d799345b9d1"), // registry
+    coin, // payment
+    tx.pure.u64(expirationDurationMs), // expiration_duration_ms
+    tx.pure.vector('u8', Array.from(secretHash)), // secret_hash
+    tx.object('0x6'), // clock
+  ]
+  console.log("Coin", coin)
+  console.log("Txn args")
   tx.moveCall({
-    target: `${PACKAGE_ID}::swap_v3::fund_dst_escrow`,
+    target: `${"0x275626d26726ad0d4bddc89c29120a97411207223d01a549438092d003ecc8bb"}::swap_v3::fund_dst_escrow`,
     typeArguments: [coinType],
-    arguments: [
-      tx.object(REGISTRY_OBJECT_ID), // registry
-      coin, // payment
-      tx.pure.u64(expirationDurationMs), // expiration_duration_ms
-      tx.pure.vector('u8', Array.from(secretHash)), // secret_hash
-      tx.object(CLOCK_OBJECT_ID), // clock
-    ],
+    arguments: args,
   });
 
-  const result = await executeTransaction(tx, resolverKeypair, 'Funding destination escrow');
+  const result = await executeTransaction(client, tx, keypair, 'Funding destination escrow');
   if (result) {
     const createdObjects = result.objectChanges?.filter(
       (change) => change.type === 'created' && change.objectType.includes('Order')
@@ -176,24 +183,26 @@ async function fundDstEscrow<T>(
 
 // Claim funds - resolver provides secret to claim funds
 async function claimFunds<T>(
+  client: SuiClient,
+  keypair: GenericKeyPairType,
   coinType: string,
   orderObjectId: string,
   secret: Uint8Array,
-  keypair: GenericKeyPairType
+
 ) {
   const tx = new Transaction();
 
   tx.moveCall({
-    target: `${PACKAGE_ID}::swap_v3::claim_funds`,
+    target: `${SUI_CONFIG.SWAP_CONTRACT_SUI_PACKAGE_ID}::swap_v3::claim_funds`,
     typeArguments: [coinType],
     arguments: [
       tx.object(orderObjectId), // order
       tx.pure.vector('u8', Array.from(secret)), // secret
-      tx.object(CLOCK_OBJECT_ID), // clock
+      tx.object(SUI_CONFIG.CLOCK_OBJECT_ID), // clock
     ],
   });
 
-  return await executeTransaction(tx, keypair, 'Claiming funds');
+  return await executeTransaction(client, tx, keypair, 'Claiming funds');
 }
 
 // Cancel swap - returns funds to maker
@@ -204,11 +213,11 @@ async function cancelSwap<T>(
   const tx = new Transaction();
 
   tx.moveCall({
-    target: `${PACKAGE_ID}::swap_v3::cancel_swap`,
+    target: `${SUI_CONFIG.SWAP_CONTRACT_SUI_PACKAGE_ID}::swap_v3::cancel_swap`,
     typeArguments: [coinType],
     arguments: [
       tx.object(orderObjectId), // order
-      tx.object(CLOCK_OBJECT_ID), // clock
+      tx.object(SUI_CONFIG.CLOCK_OBJECT_ID), // clock
     ],
   });
 
@@ -247,7 +256,7 @@ async function getRegistryDetails() {
     console.log('🔍 Getting registry details...');
 
     const object = await client.getObject({
-      id: REGISTRY_OBJECT_ID,
+      id: SUI_CONFIG.SWAP_CONTRACT_SUI_REGISTRY_OBJECT_ID,
       options: {
         showContent: true,
         showType: true,
@@ -268,7 +277,7 @@ async function getRegistryDetails() {
 }
 
 // Helper function to find coins of specific type
-async function findCoinsOfType(coinType: string, address: string) {
+async function findCoinsOfType(client: SuiClient, coinType: string, address: string) {
   const accountAddress = address;
   const coins = await client.getAllCoins({
     owner: accountAddress,
@@ -278,131 +287,131 @@ async function findCoinsOfType(coinType: string, address: string) {
   return coins.data.filter(coin => coin.coinType === coinType);
 }
 
-// Test complete flow
-async function testCompleteFlow() {
-  console.log('\n🧪 TESTING COMPLETE SWAP FLOW');
-  console.log('='.repeat(60));
+// // Test complete flow
+// async function testCompleteFlow() {
+//   console.log('\n🧪 TESTING COMPLETE SWAP FLOW');
+//   console.log('='.repeat(60));
 
-  // Configuration
-  const COIN_TYPE = SILVER_COIN_ADDRESS; // Replace with your token type
-  const SUI_COIN_TYPE = '0x2::sui::SUI';
-  const AMOUNT = 1000000000; // 1 token with 9 decimals
-  const MIN_AMOUNT = 1000000000; // 1 token
-  const EXPIRATION_MS = 3600000; // 1 hour
+//   // Configuration
+//   const COIN_TYPE = SILVER_COIN_ADDRESS; // Replace with your token type
+//   const SUI_COIN_TYPE = '0x2::sui::SUI';
+//   const AMOUNT = 1000000000; // 1 token with 9 decimals
+//   const MIN_AMOUNT = 1000000000; // 1 token
+//   const EXPIRATION_MS = 3600000; // 1 hour
 
-  // Generate secret and hash
-  const secret = ethers.toUtf8Bytes('my_secret_password_for_swap_test');
-  const secretHash = new Uint8Array(ethers.getBytes(ethers.keccak256(secret)));
+//   // Generate secret and hash
+//   const secret = ethers.toUtf8Bytes('my_secret_password_for_swap_test');
+//   const secretHash = new Uint8Array(ethers.getBytes(ethers.keccak256(secret)));
 
-  console.log('🔐 Secret hash:', ethers.hexlify(secretHash));
+//   console.log('🔐 Secret hash:', ethers.hexlify(secretHash));
 
-  // Step 1: Get coins for maker
-  console.log('\n🎯 Step 1: Get maker coins');
-  const makerCoins = await findCoinsOfType(COIN_TYPE, userAddress);
-  if (makerCoins.length === 0) {
-    console.log('❌ Maker has no coins of the required type');
-    return;
-  }
-  console.log('✅ Found maker coins:', makerCoins[0].coinObjectId);
+//   // Step 1: Get coins for maker
+//   console.log('\n🎯 Step 1: Get maker coins');
+//   const makerCoins = await findCoinsOfType(COIN_TYPE, userAddress);
+//   if (makerCoins.length === 0) {
+//     console.log('❌ Maker has no coins of the required type');
+//     return;
+//   }
+//   console.log('✅ Found maker coins:', makerCoins[0].coinObjectId);
 
-  // Step 2: Get coins for resolver
-  console.log('\n🎯 Step 2: Get resolver coins');
-  const resolverCoins = await findCoinsOfType(SUI_COIN_TYPE, resolverAddress);
-  if (resolverCoins.length === 0) {
-    console.log('❌ Resolver has no coins of the required type');
-    return;
-  }
-  console.log('✅ Found resolver coins:', resolverCoins[0].coinObjectId);
+//   // Step 2: Get coins for resolver
+//   console.log('\n🎯 Step 2: Get resolver coins');
+//   const resolverCoins = await findCoinsOfType(SUI_COIN_TYPE, resolverAddress);
+//   if (resolverCoins.length === 0) {
+//     console.log('❌ Resolver has no coins of the required type');
+//     return;
+//   }
+//   console.log('✅ Found resolver coins:', resolverCoins[0].coinObjectId);
 
-  // Step 3: Announce order
-  console.log('\n🎯 Step 3: Announce Order');
-  const announceSuccess = await announceOrder(
-    COIN_TYPE,
-    AMOUNT,
-    MIN_AMOUNT,
-    EXPIRATION_MS,
-    secretHash,
-    makerCoins[0].coinObjectId
-  );
+//   // Step 3: Announce order
+//   console.log('\n🎯 Step 3: Announce Order');
+//   const announceSuccess = await announceOrder(
+//     COIN_TYPE,
+//     AMOUNT,
+//     MIN_AMOUNT,
+//     EXPIRATION_MS,
+//     secretHash,
+//     makerCoins[0].coinObjectId
+//   );
 
-  if (!announceSuccess) {
-    console.log('❌ Failed to announce order');
-    return;
-  }
+//   if (!announceSuccess) {
+//     console.log('❌ Failed to announce order');
+//     return;
+//   }
 
 
-  // Note: In a real scenario, you'd need to get the order object ID from the transaction result
-  // For this example, you'd need to parse the object changes to find the created order
+//   // Note: In a real scenario, you'd need to get the order object ID from the transaction result
+//   // For this example, you'd need to parse the object changes to find the created order
 
-  console.log('\n🎉 Flow setup complete!');
-  console.log('📝 Next steps:');
-  console.log('1. Get the order object ID from the transaction result');
-  console.log('2. Call fundDstEscrow with resolver account');
-  console.log('3. Call claimFunds with the secret');
-}
+//   console.log('\n🎉 Flow setup complete!');
+//   console.log('📝 Next steps:');
+//   console.log('1. Get the order object ID from the transaction result');
+//   console.log('2. Call fundDstEscrow with resolver account');
+//   console.log('3. Call claimFunds with the secret');
+// }
 
 // Helper to create test tokens (if you have a mint function)
-async function mintTestTokens(address: string, amount: number = 1000000000, keypair: GenericKeyPairType = userKeypair) {
-  const tx = new Transaction();
+// async function mintTestTokens(address: string, amount: number = 1000000000, keypair: GenericKeyPairType = userKeypair) {
+//   const tx = new Transaction();
 
-  // This assumes you have a mint function in your token module
-  tx.moveCall({
-    target: `${PACKAGE_ID}::my_token::mint`,
-    arguments: [
-      tx.pure.u64(amount),
-      tx.pure.address(address),
-    ],
-  });
-  return await executeTransaction(tx, keypair, 'Minting test tokens');
-}
+//   // This assumes you have a mint function in your token module
+//   tx.moveCall({
+//     target: `${PACKAGE_ID}::my_token::mint`,
+//     arguments: [
+//       tx.pure.u64(amount),
+//       tx.pure.address(address),
+//     ],
+//   });
+//   return await executeTransaction(tx, keypair, 'Minting test tokens');
+// }
 
 // Main function for testing individual components
-async function main() {
-  console.log('🚀 Sui Swap Script Starting...');
+// async function main() {
+//   console.log('🚀 Sui Swap Script Starting...');
 
-  // Uncomment the functions you want to test:
+//   // Uncomment the functions you want to test:
 
-  // Check balances
-  console.log("user balance", await getBalance(userAddress));
-  console.log("resolver balance", await getBalance(resolverAddress));
+//   // Check balances
+//   console.log("user balance", await getBalance(userAddress));
+//   console.log("resolver balance", await getBalance(resolverAddress));
 
-  // fund destination escrow by resolver flow start
-  const secret = ethers.toUtf8Bytes('my_secret_password_for_swap_test');
-  const secretHash = new Uint8Array(ethers.getBytes(ethers.keccak256(secret)));
+//   // fund destination escrow by resolver flow start
+//   const secret = ethers.toUtf8Bytes('my_secret_password_for_swap_test');
+//   const secretHash = new Uint8Array(ethers.getBytes(ethers.keccak256(secret)));
 
-  // const resolverCoins = await findCoinsOfType(SILVER_COIN_ADDRESS, resolverAddress);
-  // await fundDstEscrow(SILVER_COIN_ADDRESS, 1 * 1e9, 300000 * 1e3, secretHash, resolverCoins[0].coinObjectId)
+//   // const resolverCoins = await findCoinsOfType(SILVER_COIN_ADDRESS, resolverAddress);
+//   // await fundDstEscrow(SILVER_COIN_ADDRESS, 1 * 1e9, 300000 * 1e3, secretHash, resolverCoins[0].coinObjectId)
 
-  // console.log("After funding destination escrow")
-  // console.log(await getBalance(resolverAddress));
-  // fund destination escrow flow ends
-
-
-  // claim funds flow by user
-  // orderId: 0xa76c527575368c75639fdd5f70ed27be23032400e143b415177bdc7dc61d80b7
-  await claimFunds(SILVER_COIN_ADDRESS, "0xa2dfd27fcf1c64346e864a7c3411e5a1350db2f41645aef7fc4277c7c1ebd763", secret, userKeypair)
-  console.log("user funds after claim", await getBalance(userAddress))
+//   // console.log("After funding destination escrow")
+//   // console.log(await getBalance(resolverAddress));
+//   // fund destination escrow flow ends
 
 
-  // fund destination escrow by resolver flow end
+//   // claim funds flow by user
+//   // orderId: 0xa76c527575368c75639fdd5f70ed27be23032400e143b415177bdc7dc61d80b7
+//   await claimFunds(SILVER_COIN_ADDRESS, "0xa2dfd27fcf1c64346e864a7c3411e5a1350db2f41645aef7fc4277c7c1ebd763", secret, userKeypair)
+//   console.log("user funds after claim", await getBalance(userAddress))
 
-  // Initialize registry (only needed once)
-  // await initializeSwapRegistry();
 
-  // Get registry info
-  // await getRegistryDetails();
+//   // fund destination escrow by resolver flow end
 
-  // Mint test tokens
-  // await mintTestTokens();
+//   // Initialize registry (only needed once)
+//   // await initializeSwapRegistry();
 
-  // Test complete flow
-  // await testCompleteFlow();
+//   // Get registry info
+//   // await getRegistryDetails();
 
-  // Manual testing with specific object IDs:
-  // await getOrderDetails('YOUR_ORDER_OBJECT_ID');
-  // await claimFunds('YOUR_COIN_TYPE', 'YOUR_ORDER_OBJECT_ID', secret);
-  // await cancelSwap('YOUR_COIN_TYPE', 'YOUR_ORDER_OBJECT_ID');
-}
+//   // Mint test tokens
+//   // await mintTestTokens();
+
+//   // Test complete flow
+//   // await testCompleteFlow();
+
+//   // Manual testing with specific object IDs:
+//   // await getOrderDetails('YOUR_ORDER_OBJECT_ID');
+//   // await claimFunds('YOUR_COIN_TYPE', 'YOUR_ORDER_OBJECT_ID', secret);
+//   // await cancelSwap('YOUR_COIN_TYPE', 'YOUR_ORDER_OBJECT_ID');
+// }
 
 
 
@@ -416,8 +425,8 @@ export {
   getRegistryDetails,
   getBalance,
   findCoinsOfType,
-  testCompleteFlow,
-  mintTestTokens,
+  // testCompleteFlow,
+  // mintTestTokens,
   executeTransaction,
 };
 

@@ -146,7 +146,13 @@ async function fundDstEscrow<T>(
 
   // Split coins if needed
   const [coin] = tx.splitCoins(tx.object(coinObjectId), [amount]);
-
+  console.log([
+    tx.object(REGISTRY_OBJECT_ID), // registry
+    coin, // payment
+    tx.pure.u64(expirationDurationMs), // expiration_duration_ms
+    tx.pure.vector('u8', Array.from(secretHash)), // secret_hash
+    tx.object(CLOCK_OBJECT_ID), // clock
+  ])
   tx.moveCall({
     target: `${PACKAGE_ID}::swap_v3::fund_dst_escrow`,
     typeArguments: [coinType],
@@ -371,12 +377,15 @@ async function main() {
   // fund destination escrow by resolver flow start
   const secret = ethers.toUtf8Bytes('my_secret_password_for_swap_test');
   const secretHash = new Uint8Array(ethers.getBytes(ethers.keccak256(secret)));
+  console.log("secret hash", secretHash)
 
-  // const resolverCoins = await findCoinsOfType(SILVER_COIN_ADDRESS, resolverAddress);
-  // await fundDstEscrow(SILVER_COIN_ADDRESS, 1 * 1e9, 300000 * 1e3, secretHash, resolverCoins[0].coinObjectId)
+  const resolverCoins = await findCoinsOfType(SILVER_COIN_ADDRESS, resolverAddress);
+  const params = [SILVER_COIN_ADDRESS, 1 * 1e9, 300000 * 1e3, secretHash, resolverCoins[0].coinObjectId]
+  console.log({ params })
+  await fundDstEscrow(...params)
 
-  // console.log("After funding destination escrow")
-  // console.log(await getBalance(resolverAddress));
+  console.log("After funding destination escrow")
+  console.log(await getBalance(resolverAddress));
   // fund destination escrow flow ends
 
 
@@ -424,4 +433,4 @@ export {
 };
 
 // Run if this file is executed directly
-// main().catch(console.error);
+main().catch(console.error);

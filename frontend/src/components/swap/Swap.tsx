@@ -60,6 +60,7 @@ export default function Component() {
     extension: string
     typedData: EIP712TypedData
     success: boolean
+    secretHash: string
   } | null>(null)
 
   const handleSwapTokens = () => {
@@ -155,6 +156,7 @@ export default function Component() {
           extension: order.extension,
           srcChainId: from.chainId,
           order: order.limitOrderV4,
+          secretHash: order.secretHash,
         }),
       })
 

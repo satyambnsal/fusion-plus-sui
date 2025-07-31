@@ -1,6 +1,10 @@
+import { getFullnodeUrl, SuiClient } from "@mysten/sui/client";
 import { JsonRpcProvider } from "ethers";
+import { getKeypair } from "./lib/privKey";
+const RPC_URL = getFullnodeUrl('testnet');
 export const provider = new JsonRpcProvider("https://sepolia.infura.io/v3/eefe96c240bc4745a6d895d83d3968b4", 11155111)
 
+export const suiClient = new SuiClient({ url: RPC_URL });
 export const ethereumConfig = {
   chainId: 11155111,
   url: "https://sepolia.infura.io/v3/eefe96c240bc4745a6d895d83d3968b4",
@@ -19,6 +23,21 @@ export const ethereumConfig = {
   "resolverContractAddress": '0x707710DBA922769f0A9b502Ea634D146790ca4a6',
   "escrowFactoryContractAddress": "0xd3e99B1622A45153f087173e904296e7B6e357DF"
 };
+
+console.log("resol jey", process.env.RESOLVER_SUI_ACC_PRIVATE_KEY)
+const RESOLVER_KEYPAIR = getKeypair(process.env.RESOLVER_SUI_ACC_PRIVATE_KEY || "")
+const RESOLVER_ADDRESS = RESOLVER_KEYPAIR.getPublicKey().toSuiAddress()
+
+
+export const SUI_CONFIG = {
+  SWAP_CONTRACT_SUI_PACKAGE_ID: process.env.SWAP_CONTRACT_SUI_PACKAGE_ID || 'YOUR_PACKAGE_ID_HERE',
+  SWAP_CONTRACT_SUI_REGISTRY_OBJECT_ID: process.env.SWAP_CONTRACT_SUI_REGISTRY_OBJECT_ID || 'YOUR_REGISTRY_OBJECT_ID_HERE',
+  CLOCK_OBJECT_ID: '0x6',
+  SILVER_COIN_ADDRESS: process.env.SILVER_COIN_ADDRESS || '0xe33c8ada01d0c54b83546a768bf35b9af658502b59fa03c20793f832a91098d5::silver::SILVER',
+  RESOLVER_KEYPAIR,
+  RESOLVER_ADDRESS,
+  SUI_COIN_TYPE: '0x2::sui::SUI'
+}
 
 export const config = {
   allowedChainIds: [8453, 11155111],
