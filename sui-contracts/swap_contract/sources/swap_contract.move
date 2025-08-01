@@ -5,6 +5,7 @@ module swap_contract::swap_v3 {
     use sui::hash;
     use sui::event;
 
+
     const EINVALID_AMOUNT: u64 = 3;
     const EORDER_ALREADY_FILLED_OR_CANCELLED: u64 = 5;
     const EORDER_EXPIRED: u64 = 6;
@@ -49,6 +50,7 @@ module swap_contract::swap_v3 {
 
     public struct OrderClaimed has copy, drop {
         order_id: ID,
+        maker: address,
         resolver: address,
         secret: vector<u8>,
     }
@@ -118,6 +120,7 @@ module swap_contract::swap_v3 {
 
     public entry fun fund_dst_escrow<T>(
         registry: &mut SwapRegistry,
+        maker: address,
         payment: Coin<T>,
         expiration_duration_ms: u64,
         secret_hash: vector<u8>,
@@ -138,7 +141,7 @@ module swap_contract::swap_v3 {
         
         let order = Order<T> {
             id: order_id,
-            maker: @0x0, // No maker for resolver orders
+            maker, // No maker for resolver orders
             amount,
             min_amount: 0,
             expiration_timestamp_ms: expiration_timestamp,
@@ -182,6 +185,7 @@ module swap_contract::swap_v3 {
         assert!(option::is_some(&order.coins), EORDER_ALREADY_FILLED_OR_CANCELLED);
 
         let resolver = tx_context::sender(ctx);
+        let maker = order.maker;
         let order_id = object::uid_to_inner(&order.id);
 
         // Store the revealed secret
@@ -190,12 +194,13 @@ module swap_contract::swap_v3 {
         // Extract and transfer coins to resolver
         let balance = option::extract(&mut order.coins);
         let coins = coin::from_balance(balance, ctx);
-        transfer::public_transfer(coins, resolver);
+        transfer::public_transfer(coins, maker);
 
         // Emit event
         event::emit(OrderClaimed {
             order_id,
             resolver,
+            maker,
             secret,
         });
     }
