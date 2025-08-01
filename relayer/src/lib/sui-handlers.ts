@@ -133,13 +133,15 @@ async function fundDstEscrow<T>(
   expirationDurationMs: number,
   secretHash: Uint8Array,
   coinObjectId: string,
+  receiver: string
 ) {
   const tx = new Transaction();
 
   // Split coins if needed
   const [coin] = tx.splitCoins(tx.object(coinObjectId), [amount]);
   const args = [
-    tx.object(SUI_CONFIG.SWAP_CONTRACT_SUI_REGISTRY_OBJECT_ID), // registry
+    tx.object(SUI_CONFIG.SWAP_CONTRACT_SUI_REGISTRY_OBJECT_ID),
+    tx.pure.address(receiver),
     coin, // payment
     tx.pure.u64(expirationDurationMs), // expiration_duration_ms
     tx.pure.vector('u8', Array.from(secretHash)), // secret_hash
@@ -177,7 +179,6 @@ async function claimFunds<T>(
   coinType: string,
   orderObjectId: string,
   secret: Uint8Array,
-
 ) {
   const tx = new Transaction();
 

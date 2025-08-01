@@ -13,70 +13,19 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useAccount } from 'wagmi'
-import { EIP712TypedData, LimitOrderV4Struct } from '@1inch/cross-chain-sdk'
-import { randomBytes } from 'ethers'
-import { uint8ArrayToHex } from '@1inch/byte-utils'
 import { requestEthereumSignature, truncateAddress } from '@/lib/utils'
 import { Loader2 } from 'lucide-react'
 import { useDebounce } from 'use-debounce'
 import { Toaster, toast } from 'sonner'
-
-// Token configuration
-interface Token {
-  symbol: string
-  name: string
-  icon: string
-  color: string
-  balance: string
-  address: string
-  chainId: number
-  decimals: number
-}
-
-const tokens: Token[] = [
-  {
-    symbol: 'SBL',
-    name: 'Sbl token',
-    icon: '⟠',
-    color: 'text-blue-400',
-    balance: '2.5431',
-    address: '0x51B6c8FAb037fBf365CF43A02c953F2305e70bb4',
-    chainId: 11155111,
-    decimals: 9,
-  },
-  {
-    symbol: 'SILVER',
-    name: 'Silver',
-    decimals: 9,
-    icon: '₿',
-    color: 'text-orange-400',
-    balance: '0.1234',
-    address: '0x0000000000000000000000000000000000000000',
-    chainId: 8453,
-  },
-]
+import { OrderResponse, QuoteResponse, Token } from '@/types'
+import { ETH_CHAIN_ID, SUI_CHAIN_ID, tokens } from '@/constants'
+import { useCurrentAccount } from '@mysten/dapp-kit'
+import { useSuiBalance } from '@/hooks/useSuiBalance'
+import { useEthBalance } from '@/hooks/useEthBalance'
 
 const getTokenData = (address: string): Token =>
   tokens.find((token) => token.address === address) || tokens[0]
 
-// API response types
-interface QuoteResponse {
-  presets: {
-    fast: {
-      startAmount: string
-    }
-  }
-}
-
-interface OrderResponse {
-  limitOrderV4: LimitOrderV4Struct
-  extension: string
-  typedData: EIP712TypedData
-  success: boolean
-  secretHash: string
-}
-
-// Custom hook for quote fetching
 const useQuote = (
   fromToken: string,
   toToken: string,
@@ -86,7 +35,6 @@ const useQuote = (
   const [quote, setQuote] = useState<QuoteResponse | null>(null)
   const [isLoadingQuote, setIsLoadingQuote] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // const { toast } = useToast()
 
   const fetchQuote = useCallback(async () => {
     if (!fromToken || !toToken || !fromAmount || !walletAddress || Number(fromAmount) <= 0) {
@@ -155,8 +103,46 @@ export default function SwapComponent() {
   const [isSwapping, setIsSwapping] = useState(false)
   const [order, setOrder] = useState<OrderResponse | null>(null)
   const { address, isConnected } = useAccount()
+  const suiAccount = useCurrentAccount()
+  const { balance: suiTokenBalance } = useSuiBalance(tokens[1].addressv2)
 
-  // Use custom hook for quote fetching
+  const { balance: ethTokenBalance } = useEthBalance(tokens[0].addressv2)
+  console.log({ suiTokenBalance, ethTokenBalance })
+
+  useEffect(() => {
+    const from = getTokenData(fromToken)
+    const to = getTokenData(toToken)
+    if (from.chainId === ETH_CHAIN_ID) {
+      const formattedBalance = (
+        Number(ethTokenBalance?.balance) / Math.pow(10, from.decimals)
+      ).toString()
+      setFromAmount(`${ethTokenBalance?.balance} ${from.symbol}`)
+    }
+    if (to.chainId === ETH_CHAIN_ID) {
+      const formattedBalance = (
+        Number(ethTokenBalance?.balance) / Math.pow(10, to.decimals)
+      ).toString()
+      setToAmount(`${formattedBalance} ${to.symbol}`)
+    }
+  }, [ethTokenBalance])
+
+  useEffect(() => {
+    const from = getTokenData(fromToken)
+    const to = getTokenData(toToken)
+    if (from.chainId === SUI_CHAIN_ID) {
+      const formattedBalance = (
+        Number(suiTokenBalance?.totalBalance) / Math.pow(10, from.decimals)
+      ).toString()
+      setFromAmount(`${formattedBalance} ${from.symbol}`)
+    }
+    if (to.chainId === SUI_CHAIN_ID) {
+      const formattedBalance = (
+        Number(suiTokenBalance?.totalBalance) / Math.pow(10, to.decimals)
+      ).toString()
+      setToAmount(`${formattedBalance} ${to.symbol}`)
+    }
+  }, [suiTokenBalance])
+
   const {
     quote,
     isLoadingQuote,
@@ -185,10 +171,13 @@ export default function SwapComponent() {
 
   const handleSwap = async () => {
     if (!isConnected || !address) {
-      toast('Please connect your wallet.')
+      toast('Please connect your Ethereum wallet.')
       return
     }
-
+    if (!suiAccount?.address) {
+      toast('Please connect your Sui wallet.')
+      return
+    }
     if (!quote || !fromAmount || Number(fromAmount) <= 0) {
       toast.error('Invalid input or no quote available.')
       return
@@ -207,6 +196,8 @@ export default function SwapComponent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           maker: address,
+          // receiver: '0x16797177f13095C9266c7772C6F1ca66809Bef84' || suiAccount.address,
+          receiver: suiAccount.address,
           makingAmount: amount.toString(),
           takingAmount: takingAmount.toString(),
           makerAsset: from.address,
@@ -233,8 +224,7 @@ export default function SwapComponent() {
   }
 
   const handleSignOrder = async () => {
-    if (!order || !address) return
-
+    if (!order || !address || !suiAccount?.address) return
     setIsSwapping(true)
     try {
       const from = getTokenData(fromToken)
@@ -334,7 +324,6 @@ export default function SwapComponent() {
                 <ArrowUpDown className="w-4 h-4" />
               </Button>
             </div>
-
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <label className="text-sm font-medium text-gray-400">To</label>
@@ -398,9 +387,7 @@ export default function SwapComponent() {
                 <span className="text-green-400">{'<0.01%'}</span>
               </div>
             </div>
-
             {quoteError && <div className="text-red-400 text-sm text-center">{quoteError}</div>}
-
             <Button
               className="w-full h-14 bg-white text-black hover:bg-white/80 hover:text-black/80 font-semibold text-lg rounded-xl transition-all duration-200"
               onClick={handleSwap}
@@ -416,7 +403,6 @@ export default function SwapComponent() {
                 'Create Swap Order'
               )}
             </Button>
-
             {order && (
               <Button
                 className="w-full h-14 bg-white text-black hover:bg-white/80 hover:text-black/80 font-semibold text-lg rounded-xl transition-all duration-200"

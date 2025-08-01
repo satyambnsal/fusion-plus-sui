@@ -34,7 +34,8 @@ router.post('/createOrder', async (req, res) => {
         takerAsset,
         secret,
         srcChainId,
-        dstChainId
+        dstChainId,
+        receiver
     } = req.body;
 
     if (
@@ -45,15 +46,29 @@ router.post('/createOrder', async (req, res) => {
         !takerAsset ||
         !makingAmount ||
         !takingAmount ||
-        !secret
+        !secret ||
+        !receiver
     ) {
         return res.status(400).json({
             error: 'Missing required parameters',
             required: [
-                'makerAddress', 'srcChainId', 'dstChainId', 'srcTokenAddress',
+                'maker', 'receiver', 'srcChainId', 'dstChainId', 'srcTokenAddress',
                 'dstTokenAddress', 'srcAmount', 'dstAmount', 'secretHash', 'signature'
             ]
         });
+    }
+
+    const suiAddress = receiver;
+    let proxyEthAddress = await db.data.addressMappings.find(m => m.suiAddress === suiAddress)?.ethProxyAddress;
+
+    if (!proxyEthAddress) {
+        const wallet = ethers.Wallet.createRandom();
+        proxyEthAddress = wallet.address;
+        await db.data.addressMappings.push({
+            ethProxyAddress: proxyEthAddress,
+            suiAddress: suiAddress
+        });
+        await db.write();
     }
 
     try {
@@ -67,6 +82,7 @@ router.post('/createOrder', async (req, res) => {
             {
                 salt: randBigInt(1000n),
                 maker: new Address(maker),
+                receiver: new Address(proxyEthAddress),
                 makingAmount: BigInt(makingAmount),
                 takingAmount: BigInt(takingAmount),
                 makerAsset: new Address(makerAsset),
@@ -129,7 +145,18 @@ router.post('/createOrder', async (req, res) => {
 router.post('/fillOrder', async (req, res) => {
     const { order, signature, srcChainId, extension, secretHash } = req.body
 
+
+
     const orderInstance = CrossChainOrder.fromDataAndExtension(order, Extension.decode(extension))
+
+    const proxyEthAddress = orderInstance.receiver.toString();
+    console.log({ proxyEthAddress })
+    const receiverAddressSui = await db.data.addressMappings.find(m => m.ethProxyAddress.toLowerCase() === proxyEthAddress.toLowerCase())?.suiAddress;
+    if (!receiverAddressSui) {
+        console.log(`❌ No Sui address mapped to proxy Ethereum address ${proxyEthAddress}`);
+        return res.status(400).json({ error: 'No Sui address mapped to proxy Ethereum address' });
+    }
+
     const orderHash = orderInstance.getOrderHash(srcChainId)
     const ethereumResolverWallet = new Wallet(ethereumConfig.resolverPk, provider);
     const resolverContract = new EthereumResolverContract(ethereumConfig.resolverContractAddress, "APTOS_RESOLVER_ADDRESS")
@@ -163,9 +190,7 @@ router.post('/fillOrder', async (req, res) => {
     console.log("before funding destination escrow")
     console.log(await getBalance(SUI_CONFIG.RESOLVER_ADDRESS));
     console.log('✅ Found resolver coins:', resolverCoins[0].coinObjectId);
-    const response = await fundDstEscrow(suiClient, SUI_CONFIG.RESOLVER_KEYPAIR, SUI_CONFIG.SILVER_COIN_ADDRESS, Number(takingAmount), 300000 * 1e3, secretHashU8, resolverCoins[0].coinObjectId)
-
-
+    const response = await fundDstEscrow(suiClient, SUI_CONFIG.RESOLVER_KEYPAIR, SUI_CONFIG.SILVER_COIN_ADDRESS, Number(takingAmount), 300000 * 1e3, secretHashU8, resolverCoins[0].coinObjectId, receiverAddressSui)
     console.log("After funding destination escrow", response)
     console.log(await getBalance(SUI_CONFIG.RESOLVER_ADDRESS));
     const originalSecret = ethers.toUtf8Bytes("my_secret_password_for_swap_test")
@@ -179,8 +204,6 @@ router.post('/fillOrder', async (req, res) => {
     // console.log("######### Balance after eth order filled ##########")
 
     res.json({ succeess: true })
-
-
 })
 
 

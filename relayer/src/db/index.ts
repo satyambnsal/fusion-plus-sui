@@ -5,10 +5,14 @@ import type { QuoterResponse, SerializedOrder } from '../types';
 
 type Data = {
   quotes: QuoterResponse[],
-  orders: SerializedOrder[]
+  orders: SerializedOrder[],
+  addressMappings: {
+    suiAddress: string,
+    ethProxyAddress: string
+  }[]
 }
 
-const defaultData: Data = { quotes: [], orders: [] }
+const defaultData: Data = { quotes: [], orders: [], addressMappings: [] }
 
 export const db = await JSONFilePreset<Data>('db_data.json', defaultData)
 
