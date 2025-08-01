@@ -4,6 +4,10 @@ import { getKeypair } from "./lib/privKey";
 const RPC_URL = getFullnodeUrl('testnet');
 export const provider = new JsonRpcProvider("https://sepolia.infura.io/v3/eefe96c240bc4745a6d895d83d3968b4", 11155111)
 
+
+export const SUI_CHAIN_ID = 8453;
+export const ETH_CHAIN_ID = 11155111
+
 export const suiClient = new SuiClient({ url: RPC_URL });
 export const ethereumConfig = {
   chainId: 11155111,
@@ -47,5 +51,13 @@ export const config = {
   dstSafetyDeposit: 1 * 1e6,
   whitelist: [
     "0x707710DBA922769f0A9b502Ea634D146790ca4a6"
-  ]
+  ],
+
+}
+
+export const CHAIN_MAPPINGS = {
+  11155111: 1,
+  8453: 8453
+} as {
+  [key: number]: number
 }

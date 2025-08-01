@@ -13,7 +13,7 @@ import {
     EscrowFactory as InchEscrowFactory
 } from '@1inch/cross-chain-sdk';
 import { uint8ArrayToHex } from '@1inch/byte-utils';
-import { provider, ethereumConfig, SUI_CONFIG, suiClient, ETH_CHAIN_ID, SUI_CHAIN_ID } from '../config.js';
+import { provider, ethereumConfig, SUI_CONFIG, suiClient, ETH_CHAIN_ID, SUI_CHAIN_ID, config, CHAIN_MAPPINGS } from '../config.js';
 import { Resolver as EthereumResolverContract } from '../lib/resolver.js';
 import { Wallet } from '../lib/wallet.js';
 import { db } from '../db'
@@ -21,6 +21,7 @@ import { getKeypair } from '../lib/privKey.js';
 import { claimFunds, findCoinsOfType, fundDstEscrow, getBalance } from '../lib/sui-handlers.js';
 import { sleep } from 'bun';
 import { EscrowFactory } from '../lib/EscrowFactory.js';
+import type { SupportedChain } from '@1inch/cross-chain-sdk';
 
 
 const router = express.Router();
@@ -60,9 +61,8 @@ router.post('/createOrder', async (req, res) => {
         });
     }
 
-    const suiAddress = receiver;
+    const suiAddress = srcChainId === ETH_CHAIN_ID ? receiver : maker;
     let proxyEthAddress = await db.data.addressMappings.find(m => m.suiAddress === suiAddress)?.ethProxyAddress;
-
     if (!proxyEthAddress) {
         const wallet = ethers.Wallet.createRandom();
         proxyEthAddress = wallet.address;
@@ -72,6 +72,7 @@ router.post('/createOrder', async (req, res) => {
         });
         await db.write();
     }
+
 
     try {
         const secretBytes = ethers.toUtf8Bytes(secret);
@@ -83,8 +84,8 @@ router.post('/createOrder', async (req, res) => {
             new Address(ethereumConfig.escrowFactoryContractAddress),
             {
                 salt: randBigInt(1000n),
-                maker: new Address(maker),
-                receiver: new Address(proxyEthAddress),
+                maker: new Address((srcChainId === ETH_CHAIN_ID ? maker : proxyEthAddress)),
+                receiver: new Address((srcChainId === ETH_CHAIN_ID ? proxyEthAddress : receiver)),
                 makingAmount: BigInt(makingAmount),
                 takingAmount: BigInt(takingAmount),
                 makerAsset: new Address(makerAsset),
@@ -101,8 +102,8 @@ router.post('/createOrder', async (req, res) => {
                     dstPublicWithdrawal: 100n,
                     dstCancellation: 101n
                 }),
-                srcChainId: 1,
-                dstChainId,
+                srcChainId: CHAIN_MAPPINGS[srcChainId],
+                dstChainId: CHAIN_MAPPINGS[dstChainId],
                 srcSafetyDeposit: ethers.parseEther('0.001'),
                 dstSafetyDeposit: ethers.parseEther('0.001')
             },
@@ -222,7 +223,7 @@ router.post('/fillOrder', async (req, res) => {
         // Both runs should succeed - the Ethereum side is independent of Aptos funding
 
         const { txHash: resolverWithdrawHash } = await ethereumResolverWallet.send(
- 
+
             resolverContract.withdraw('src', srcEscrowAddress, hexSecret, ethereumEscrowEvent[0])
         )
 
@@ -238,6 +239,7 @@ router.post('/fillOrder', async (req, res) => {
     if (srcChainId === SUI_CHAIN_ID) {
         //TODO Implement Sui flow
     }
+    res.json({ succeess: false, message: "Wrong chain id" })
 
 
 })

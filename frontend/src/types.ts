@@ -10,6 +10,7 @@ export interface Token {
   addressv2: string
   chainId: number
   decimals: number
+  chainName: string
 }
 
 export interface QuoteResponse {

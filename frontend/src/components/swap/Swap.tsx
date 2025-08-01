@@ -105,24 +105,19 @@ export default function SwapComponent() {
   const { address, isConnected } = useAccount()
   const suiAccount = useCurrentAccount()
   const { balance: suiTokenBalance } = useSuiBalance(tokens[1].addressv2)
+  const [fromTokenBalance, setFromTokenBalance] = useState('00')
+  const [toTokenBalance, setToTokenBalance] = useState('')
 
   const { balance: ethTokenBalance } = useEthBalance(tokens[0].addressv2)
-  console.log({ suiTokenBalance, ethTokenBalance })
 
   useEffect(() => {
     const from = getTokenData(fromToken)
     const to = getTokenData(toToken)
     if (from.chainId === ETH_CHAIN_ID) {
-      const formattedBalance = (
-        Number(ethTokenBalance?.balance) / Math.pow(10, from.decimals)
-      ).toString()
-      setFromAmount(`${ethTokenBalance?.balance} ${from.symbol}`)
+      setFromTokenBalance(`${ethTokenBalance?.balance || 0} ${from.symbol}`)
     }
     if (to.chainId === ETH_CHAIN_ID) {
-      const formattedBalance = (
-        Number(ethTokenBalance?.balance) / Math.pow(10, to.decimals)
-      ).toString()
-      setToAmount(`${formattedBalance} ${to.symbol}`)
+      setToTokenBalance(`${ethTokenBalance?.balance || 0} ${to.symbol}`)
     }
   }, [ethTokenBalance])
 
@@ -133,13 +128,13 @@ export default function SwapComponent() {
       const formattedBalance = (
         Number(suiTokenBalance?.totalBalance) / Math.pow(10, from.decimals)
       ).toString()
-      setFromAmount(`${formattedBalance} ${from.symbol}`)
+      setFromTokenBalance(`${formattedBalance} ${from.symbol}`)
     }
     if (to.chainId === SUI_CHAIN_ID) {
       const formattedBalance = (
         Number(suiTokenBalance?.totalBalance) / Math.pow(10, to.decimals)
       ).toString()
-      setToAmount(`${formattedBalance} ${to.symbol}`)
+      setToTokenBalance(`${formattedBalance} ${to.symbol}`)
     }
   }, [suiTokenBalance])
 
@@ -191,13 +186,16 @@ export default function SwapComponent() {
       const takingAmount = quote.presets.fast.startAmount
       const secret = 'my_secret_password_for_swap_test'
 
+      const maker = from.chainId === SUI_CHAIN_ID ? suiAccount?.address : address
+      const receiver = from.chainId === SUI_CHAIN_ID ? address: suiAccount?.address
+
       const orderResponse = await fetch('http://localhost:3004/relayer/createOrder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          maker: address,
+          maker,
           // receiver: '0x16797177f13095C9266c7772C6F1ca66809Bef84' || suiAccount.address,
-          receiver: suiAccount.address,
+          receiver,
           makingAmount: amount.toString(),
           takingAmount: takingAmount.toString(),
           makerAsset: from.address,
@@ -268,9 +266,7 @@ export default function SwapComponent() {
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <label className="text-sm font-medium text-gray-400">From</label>
-                <span className="text-xs text-gray-500">
-                  Balance: {getTokenData(fromToken).balance}
-                </span>
+                <span className="text-xs text-gray-500">{fromTokenBalance}</span>
               </div>
               <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
                 <div className="flex items-center gap-3">
@@ -327,9 +323,7 @@ export default function SwapComponent() {
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <label className="text-sm font-medium text-gray-400">To</label>
-                <span className="text-xs text-gray-500">
-                  Balance: {getTokenData(toToken).balance}
-                </span>
+                <span className="text-xs text-gray-500">{toTokenBalance}</span>
               </div>
               <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
                 <div className="flex items-center gap-3">
