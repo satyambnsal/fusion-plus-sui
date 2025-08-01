@@ -9,16 +9,18 @@ import {
     randBigInt,
     Extension,
     TakerTraits,
-    AmountMode
+    AmountMode,
+    EscrowFactory as InchEscrowFactory
 } from '@1inch/cross-chain-sdk';
 import { uint8ArrayToHex } from '@1inch/byte-utils';
-import { provider, ethereumConfig, SUI_CONFIG, suiClient } from '../config.js';
+import { provider, ethereumConfig, SUI_CONFIG, suiClient, ETH_CHAIN_ID, SUI_CHAIN_ID } from '../config.js';
 import { Resolver as EthereumResolverContract } from '../lib/resolver.js';
 import { Wallet } from '../lib/wallet.js';
 import { db } from '../db'
 import { getKeypair } from '../lib/privKey.js';
 import { claimFunds, findCoinsOfType, fundDstEscrow, getBalance } from '../lib/sui-handlers.js';
 import { sleep } from 'bun';
+import { EscrowFactory } from '../lib/EscrowFactory.js';
 
 
 const router = express.Router();
@@ -144,66 +146,100 @@ router.post('/createOrder', async (req, res) => {
 
 router.post('/fillOrder', async (req, res) => {
     const { order, signature, srcChainId, extension, secretHash } = req.body
-
-
-
     const orderInstance = CrossChainOrder.fromDataAndExtension(order, Extension.decode(extension))
 
     const proxyEthAddress = orderInstance.receiver.toString();
-    console.log({ proxyEthAddress })
     const receiverAddressSui = await db.data.addressMappings.find(m => m.ethProxyAddress.toLowerCase() === proxyEthAddress.toLowerCase())?.suiAddress;
     if (!receiverAddressSui) {
-        console.log(`❌ No Sui address mapped to proxy Ethereum address ${proxyEthAddress}`);
+        console.error(`❌ No Sui address mapped to proxy Ethereum address ${proxyEthAddress}`);
         return res.status(400).json({ error: 'No Sui address mapped to proxy Ethereum address' });
     }
 
     const orderHash = orderInstance.getOrderHash(srcChainId)
     const ethereumResolverWallet = new Wallet(ethereumConfig.resolverPk, provider);
     const resolverContract = new EthereumResolverContract(ethereumConfig.resolverContractAddress, "APTOS_RESOLVER_ADDRESS")
+    // let ethereumFactory = new EscrowFactory(provider, ethereumConfig.escrowFactoryContractAddress)
 
-    console.log(`[Ethereum] Filling order ${orderHash}`)
     const fillAmount = orderInstance.makingAmount
     const takingAmount = orderInstance.takingAmount
 
-    const { txHash: orderFillHash, blockHash: ethereumDeployBlock } = await ethereumResolverWallet.send(
-        resolverContract.deploySrc(
-            srcChainId,
-            orderInstance,
-            signature,
-            TakerTraits.default()
-                .setExtension(orderInstance.extension)
-                .setAmountMode(AmountMode.maker)
-                .setAmountThreshold(orderInstance.takingAmount),
-            fillAmount
-        )
-    )
+    console.log({ srcChainId, ETH_CHAIN_ID })
 
-    console.log(`[Ethereum] Order ${orderHash} filled for ${fillAmount} USDC in tx: ${orderFillHash}`)
-    const resolverCoins = await findCoinsOfType(suiClient, SUI_CONFIG.SILVER_COIN_ADDRESS, SUI_CONFIG.RESOLVER_ADDRESS);
-    if (resolverCoins.length === 0) {
-        console.log('❌ Resolver has no coins of the required type');
-        return;
+
+    if (srcChainId === ETH_CHAIN_ID) {
+        const { txHash: orderFillHash, blockHash: ethereumDeployBlock } = await ethereumResolverWallet.send(
+            resolverContract.deploySrc(
+                srcChainId,
+                orderInstance,
+                signature,
+                TakerTraits.default()
+                    .setExtension(orderInstance.extension)
+                    .setAmountMode(AmountMode.maker)
+                    .setAmountThreshold(orderInstance.takingAmount),
+                fillAmount
+            )
+        )
+
+        console.log(`[Ethereum] Order ${orderHash} filled for ${fillAmount} USDC in tx: ${orderFillHash}`)
+
+        const resolverCoins = await findCoinsOfType(suiClient, SUI_CONFIG.SILVER_COIN_ADDRESS, SUI_CONFIG.RESOLVER_ADDRESS);
+        if (resolverCoins.length === 0) {
+            console.log('❌ Resolver has no coins of the required type');
+            return;
+        }
+
+        const secretHashU8 = new Uint8Array(ethers.getBytes(secretHash))
+
+        console.log("before funding destination escrow")
+        console.log(await getBalance(SUI_CONFIG.RESOLVER_ADDRESS));
+        console.log('✅ Found resolver coins:', resolverCoins[0].coinObjectId);
+        const response = await fundDstEscrow(suiClient, SUI_CONFIG.RESOLVER_KEYPAIR, SUI_CONFIG.SILVER_COIN_ADDRESS, Number(takingAmount), 300000 * 1e3, secretHashU8, resolverCoins[0].coinObjectId, receiverAddressSui)
+        console.log("After funding destination escrow", response)
+        console.log(await getBalance(SUI_CONFIG.RESOLVER_ADDRESS));
+        const originalSecret = ethers.toUtf8Bytes("my_secret_password_for_swap_test")
+        const hexSecret = uint8ArrayToHex(originalSecret)
+
+        await sleep(2000)
+
+        const claimFundResp = await claimFunds(suiClient, SUI_CONFIG.RESOLVER_KEYPAIR, SUI_CONFIG.SILVER_COIN_ADDRESS, response.orderObjectId, originalSecret)
+        console.log("CLAIM FUND BALANCE", claimFundResp.digest)
+        await sleep(2000)
+
+        console.log("Fund after claiming balance")
+        console.log(await getBalance(SUI_CONFIG.RESOLVER_ADDRESS));
+
+
+
+        const ethereumFactory = new EscrowFactory(provider, ethereumConfig.escrowFactoryContractAddress);
+        const ethereumEscrowEvent = await ethereumFactory.getSrcDeployEvent(ethereumDeployBlock)
+
+        const ESCROW_SRC_IMPLEMENTATION = await ethereumFactory.getSourceImpl()
+        const srcEscrowAddress = new InchEscrowFactory(new Address(ethereumConfig.escrowFactoryContractAddress)).getSrcEscrowAddress(
+            ethereumEscrowEvent[0],
+            ESCROW_SRC_IMPLEMENTATION
+        )
+        console.log(`[Ethereum] Withdrawing funds for resolver from ${srcEscrowAddress}`)
+        // Both runs should succeed - the Ethereum side is independent of Aptos funding
+
+        const { txHash: resolverWithdrawHash } = await ethereumResolverWallet.send(
+ 
+            resolverContract.withdraw('src', srcEscrowAddress, hexSecret, ethereumEscrowEvent[0])
+        )
+
+        console.log(`[Ethereum] Successfully withdrew funds for resolver in tx: ${resolverWithdrawHash}`)
+
+
+        // const balance = await getEthereumBalances(config.chain.ethereum.tokens.USDC.address);
+        // console.log("######### Balance after eth order filled ##########")
+
+        res.json({ succeess: true })
     }
 
-    const secretHashU8 = new Uint8Array(ethers.getBytes(secretHash))
+    if (srcChainId === SUI_CHAIN_ID) {
+        //TODO Implement Sui flow
+    }
 
-    console.log("before funding destination escrow")
-    console.log(await getBalance(SUI_CONFIG.RESOLVER_ADDRESS));
-    console.log('✅ Found resolver coins:', resolverCoins[0].coinObjectId);
-    const response = await fundDstEscrow(suiClient, SUI_CONFIG.RESOLVER_KEYPAIR, SUI_CONFIG.SILVER_COIN_ADDRESS, Number(takingAmount), 300000 * 1e3, secretHashU8, resolverCoins[0].coinObjectId, receiverAddressSui)
-    console.log("After funding destination escrow", response)
-    console.log(await getBalance(SUI_CONFIG.RESOLVER_ADDRESS));
-    const originalSecret = ethers.toUtf8Bytes("my_secret_password_for_swap_test")
-    await sleep(2000)
-    const claimFundResp = await claimFunds(suiClient, SUI_CONFIG.RESOLVER_KEYPAIR, SUI_CONFIG.SILVER_COIN_ADDRESS, response.orderObjectId, originalSecret)
-    console.log("CLAIM FUND BALANCE", claimFundResp.digest)
-    await sleep(2000)
-    console.log("Fund after claiming balance")
-    console.log(await getBalance(SUI_CONFIG.RESOLVER_ADDRESS));
-    // const balance = await getEthereumBalances(config.chain.ethereum.tokens.USDC.address);
-    // console.log("######### Balance after eth order filled ##########")
 
-    res.json({ succeess: true })
 })
 
 
