@@ -18,7 +18,7 @@ import { Resolver as EthereumResolverContract } from '../lib/resolver.js';
 import { Wallet } from '../lib/wallet.js';
 import { db } from '../db'
 import { getKeypair } from '../lib/privKey.js';
-import { claimFunds, findCoinsOfType, fundDstEscrow, getBalance } from '../lib/sui-handlers.js';
+import { announceOrder, claimFunds, findCoinsOfType, fundDstEscrow, getBalance } from '../lib/sui-handlers.js';
 import { sleep } from 'bun';
 import { EscrowFactory } from '../lib/EscrowFactory.js';
 import type { SupportedChain } from '@1inch/cross-chain-sdk';
@@ -146,20 +146,12 @@ router.post('/createOrder', async (req, res) => {
 
 
 router.post('/fillOrder', async (req, res) => {
-    const { order, signature, srcChainId, extension, secretHash } = req.body
+    const { order, signature, srcChainId, extension, secretHash, coinObjectId = "" } = req.body
     const orderInstance = CrossChainOrder.fromDataAndExtension(order, Extension.decode(extension))
-
-    const proxyEthAddress = orderInstance.receiver.toString();
-    const receiverAddressSui = await db.data.addressMappings.find(m => m.ethProxyAddress.toLowerCase() === proxyEthAddress.toLowerCase())?.suiAddress;
-    if (!receiverAddressSui) {
-        console.error(`❌ No Sui address mapped to proxy Ethereum address ${proxyEthAddress}`);
-        return res.status(400).json({ error: 'No Sui address mapped to proxy Ethereum address' });
-    }
-
     const orderHash = orderInstance.getOrderHash(srcChainId)
     const ethereumResolverWallet = new Wallet(ethereumConfig.resolverPk, provider);
     const resolverContract = new EthereumResolverContract(ethereumConfig.resolverContractAddress, "APTOS_RESOLVER_ADDRESS")
-    // let ethereumFactory = new EscrowFactory(provider, ethereumConfig.escrowFactoryContractAddress)
+
 
     const fillAmount = orderInstance.makingAmount
     const takingAmount = orderInstance.takingAmount
@@ -168,6 +160,12 @@ router.post('/fillOrder', async (req, res) => {
 
 
     if (srcChainId === ETH_CHAIN_ID) {
+        const proxyEthAddress = orderInstance.receiver.toString();
+        const receiverAddressSui = await db.data.addressMappings.find(m => m.ethProxyAddress.toLowerCase() === proxyEthAddress.toLowerCase())?.suiAddress;
+        if (!receiverAddressSui) {
+            console.error(`❌ No Sui address mapped to proxy Ethereum address ${proxyEthAddress}`);
+            return res.status(400).json({ error: 'No Sui address mapped to proxy Ethereum address' });
+        }
         const { txHash: orderFillHash, blockHash: ethereumDeployBlock } = await ethereumResolverWallet.send(
             resolverContract.deploySrc(
                 srcChainId,
@@ -237,7 +235,47 @@ router.post('/fillOrder', async (req, res) => {
     }
 
     if (srcChainId === SUI_CHAIN_ID) {
-        //TODO Implement Sui flow
+        const proxyEthAddress = orderInstance.maker.toString();
+        const makerAddressSui = await db.data.addressMappings.find(m => m.ethProxyAddress.toLowerCase() === proxyEthAddress.toLowerCase())?.suiAddress;
+        if (!makerAddressSui) {
+            console.error(`❌ No Sui address mapped to proxy Ethereum address ${proxyEthAddress} for chain id ${srcChainId}`);
+            return res.status(400).json({ error: 'No Sui address mapped to proxy Ethereum address' });
+        }
+
+        const makerCoins = await findCoinsOfType(suiClient, SUI_CONFIG.SILVER_COIN_ADDRESS, makerAddressSui);
+
+        console.log({
+            makerAddressSui,
+            userAddress: SUI_CONFIG.USER_KEYPAIR.getPublicKey().toSuiAddress()
+        })
+        console.log({ RESOLVER: SUI_CONFIG.RESOLVER_ADDRESS })
+        if (makerCoins.length === 0) {
+            console.log('❌ Maker has no coins of the required type');
+            return;
+        }
+        console.log('✅ Found maker coins:', makerCoins[0].coinObjectId);
+        // Step 3: Announce order
+        console.log('\n🎯 Step 3: Announce Order');
+        const secretHashU8 = new Uint8Array(ethers.getBytes(secretHash))
+        const announceOrderArgs = [
+            SUI_CONFIG.SILVER_COIN_ADDRESS,
+            Number(1000000000),
+            10,
+            1 * 1e6,
+            secretHashU8,
+            makerCoins[0].coinObjectId,
+            SUI_CONFIG.USER_KEYPAIR
+        ]
+        console.log("announce order args", announceOrderArgs)
+        const announceSuccess = await announceOrder(SUI_CONFIG.SILVER_COIN_ADDRESS,
+            Number(1000000000),
+            1000000,
+            1 * 1e6,
+            secretHashU8,
+            makerCoins[0].coinObjectId,
+            SUI_CONFIG.USER_KEYPAIR);
+
+        console.log("Announce success: ", announceSuccess)
     }
     res.json({ succeess: false, message: "Wrong chain id" })
 

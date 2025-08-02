@@ -268,10 +268,8 @@ async function getRegistryDetails() {
 
 // Helper function to find coins of specific type
 async function findCoinsOfType(client: SuiClient, coinType: string, address: string) {
-  const accountAddress = address;
   const coins = await client.getAllCoins({
-    owner: accountAddress,
-
+    owner: address,
   });
 
   return coins.data.filter(coin => coin.coinType === coinType);

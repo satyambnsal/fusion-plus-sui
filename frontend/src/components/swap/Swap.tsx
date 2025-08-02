@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useAccount } from 'wagmi'
-import { requestEthereumSignature, truncateAddress } from '@/lib/utils'
+import { requestEthereumSignature, requestSuiSignature, truncateAddress } from '@/lib/utils'
 import { Loader2 } from 'lucide-react'
 import { useDebounce } from 'use-debounce'
 import { Toaster, toast } from 'sonner'
@@ -187,7 +187,7 @@ export default function SwapComponent() {
       const secret = 'my_secret_password_for_swap_test'
 
       const maker = from.chainId === SUI_CHAIN_ID ? suiAccount?.address : address
-      const receiver = from.chainId === SUI_CHAIN_ID ? address: suiAccount?.address
+      const receiver = from.chainId === SUI_CHAIN_ID ? address : suiAccount?.address
 
       const orderResponse = await fetch('http://localhost:3004/relayer/createOrder', {
         method: 'POST',
@@ -226,7 +226,10 @@ export default function SwapComponent() {
     setIsSwapping(true)
     try {
       const from = getTokenData(fromToken)
-      const signature = await requestEthereumSignature(order.typedData, address)
+      const signature =
+        from.chainId === SUI_CHAIN_ID
+          ? await requestSuiSignature(order.typedData, address)
+          : await requestEthereumSignature(order.typedData, address)
       const response = await fetch('http://localhost:3004/relayer/fillOrder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

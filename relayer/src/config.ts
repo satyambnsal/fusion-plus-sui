@@ -31,6 +31,9 @@ export const ethereumConfig = {
 console.log("resol jey", process.env.RESOLVER_SUI_ACC_PRIVATE_KEY)
 const RESOLVER_KEYPAIR = getKeypair(process.env.RESOLVER_SUI_ACC_PRIVATE_KEY || "")
 const RESOLVER_ADDRESS = RESOLVER_KEYPAIR.getPublicKey().toSuiAddress()
+const USER_KEYPAIR = getKeypair(process.env.USER_PRIVATE_KEY || "")
+
+
 
 
 export const SUI_CONFIG = {
@@ -40,7 +43,8 @@ export const SUI_CONFIG = {
   SILVER_COIN_ADDRESS: process.env.SILVER_COIN_ADDRESS || '0xe33c8ada01d0c54b83546a768bf35b9af658502b59fa03c20793f832a91098d5::silver::SILVER',
   RESOLVER_KEYPAIR,
   RESOLVER_ADDRESS,
-  SUI_COIN_TYPE: '0x2::sui::SUI'
+  SUI_COIN_TYPE: '0x2::sui::SUI',
+  USER_KEYPAIR
 }
 
 export const config = {
