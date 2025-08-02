@@ -295,7 +295,7 @@ async function testCompleteFlow() {
   const COIN_TYPE = SILVER_COIN_ADDRESS; // Replace with your token type
   const SUI_COIN_TYPE = '0x2::sui::SUI';
   const AMOUNT = 1000000000; // 1 token with 9 decimals
-  const MIN_AMOUNT = 1000000000; // 1 token
+  const MIN_AMOUNT = 100; // 1 token
   const EXPIRATION_MS = 3600000; // 1 hour
 
   // Generate secret and hash
@@ -315,7 +315,7 @@ async function testCompleteFlow() {
 
   // Step 2: Get coins for resolver
   console.log('\n🎯 Step 2: Get resolver coins');
-  const resolverCoins = await findCoinsOfType(SUI_COIN_TYPE, resolverAddress);
+  const resolverCoins = await findCoinsOfType(COIN_TYPE, resolverAddress);
   if (resolverCoins.length === 0) {
     console.log('❌ Resolver has no coins of the required type');
     return;
@@ -324,6 +324,12 @@ async function testCompleteFlow() {
 
   // Step 3: Announce order
   console.log('\n🎯 Step 3: Announce Order');
+  console.log("params", COIN_TYPE,
+    AMOUNT,
+    MIN_AMOUNT,
+    EXPIRATION_MS,
+    secretHash,
+    makerCoins[0].coinObjectId)
   const announceSuccess = await announceOrder(
     COIN_TYPE,
     AMOUNT,
@@ -370,29 +376,29 @@ async function main() {
 
   // Uncomment the functions you want to test:
 
-  // Check balances
-  console.log("user balance", await getBalance(userAddress));
-  console.log("resolver balance", await getBalance(resolverAddress));
+  // // Check balances
+  // console.log("user balance", await getBalance(userAddress));
+  // console.log("resolver balance", await getBalance(resolverAddress));
 
-  // fund destination escrow by resolver flow start
-  const secret = ethers.toUtf8Bytes('my_secret_password_for_swap_test');
-  const secretHash = new Uint8Array(ethers.getBytes(ethers.keccak256(secret)));
-  console.log("secret hash", secretHash)
+  // // fund destination escrow by resolver flow start
+  // const secret = ethers.toUtf8Bytes('my_secret_password_for_swap_test');
+  // const secretHash = new Uint8Array(ethers.getBytes(ethers.keccak256(secret)));
+  // console.log("secret hash", secretHash)
 
-  const resolverCoins = await findCoinsOfType(SILVER_COIN_ADDRESS, resolverAddress);
-  const params = [SILVER_COIN_ADDRESS, 1 * 1e9, 300000 * 1e3, secretHash, resolverCoins[0].coinObjectId]
-  console.log({ params })
-  await fundDstEscrow(...params)
+  // const resolverCoins = await findCoinsOfType(SILVER_COIN_ADDRESS, resolverAddress);
+  // const params = [SILVER_COIN_ADDRESS, 1 * 1e9, 300000 * 1e3, secretHash, resolverCoins[0].coinObjectId]
+  // console.log({ params })
+  // await fundDstEscrow(...params)
 
-  console.log("After funding destination escrow")
-  console.log(await getBalance(resolverAddress));
-  // fund destination escrow flow ends
+  // console.log("After funding destination escrow")
+  // console.log(await getBalance(resolverAddress));
+  // // fund destination escrow flow ends
 
 
-  // claim funds flow by user
-  // orderId: 0xa76c527575368c75639fdd5f70ed27be23032400e143b415177bdc7dc61d80b7
-  await claimFunds(SILVER_COIN_ADDRESS, "0xa2dfd27fcf1c64346e864a7c3411e5a1350db2f41645aef7fc4277c7c1ebd763", secret, userKeypair)
-  console.log("user funds after claim", await getBalance(userAddress))
+  // // claim funds flow by user
+  // // orderId: 0xa76c527575368c75639fdd5f70ed27be23032400e143b415177bdc7dc61d80b7
+  // await claimFunds(SILVER_COIN_ADDRESS, "0xa2dfd27fcf1c64346e864a7c3411e5a1350db2f41645aef7fc4277c7c1ebd763", secret, userKeypair)
+  // console.log("user funds after claim", await getBalance(userAddress))
 
 
   // fund destination escrow by resolver flow end
@@ -407,7 +413,7 @@ async function main() {
   // await mintTestTokens();
 
   // Test complete flow
-  // await testCompleteFlow();
+  await testCompleteFlow();
 
   // Manual testing with specific object IDs:
   // await getOrderDetails('YOUR_ORDER_OBJECT_ID');
@@ -433,4 +439,4 @@ export {
 };
 
 // Run if this file is executed directly
-main().catch(console.error);
+// main().catch(console.error);

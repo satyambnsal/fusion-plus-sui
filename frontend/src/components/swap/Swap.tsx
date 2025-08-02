@@ -239,6 +239,7 @@ export default function SwapComponent() {
           srcChainId: from.chainId,
           order: order.limitOrderV4,
           secretHash: order.secretHash,
+          hashLock: order.hashLock
         }),
       })
 

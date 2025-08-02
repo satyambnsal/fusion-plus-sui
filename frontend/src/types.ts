@@ -27,4 +27,5 @@ export interface OrderResponse {
   typedData: EIP712TypedData
   success: boolean
   secretHash: string
+  hashLock: string
 }

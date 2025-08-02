@@ -10,7 +10,8 @@ import {
     Extension,
     TakerTraits,
     AmountMode,
-    EscrowFactory as InchEscrowFactory
+    EscrowFactory as InchEscrowFactory,
+    DstImmutablesComplement
 } from '@1inch/cross-chain-sdk';
 import { uint8ArrayToHex } from '@1inch/byte-utils';
 import { provider, ethereumConfig, SUI_CONFIG, suiClient, ETH_CHAIN_ID, SUI_CHAIN_ID, config, CHAIN_MAPPINGS } from '../config.js';
@@ -79,6 +80,7 @@ router.post('/createOrder', async (req, res) => {
         const finalSecret = uint8ArrayToHex(secretBytes)
         const secretHash = HashLock.hashSecret(finalSecret)
         const timestamp = BigInt(((await provider.getBlock('latest'))!).timestamp)
+        const hashLock = HashLock.forSingleFill(finalSecret)
 
         const order = CrossChainOrder.new(
             new Address(ethereumConfig.escrowFactoryContractAddress),
@@ -92,7 +94,7 @@ router.post('/createOrder', async (req, res) => {
                 takerAsset: new Address(takerAsset)
             },
             {
-                hashLock: HashLock.forSingleFill(finalSecret),
+                hashLock,
                 timeLocks: TimeLocks.new({
                     srcWithdrawal: 10n,
                     srcPublicWithdrawal: 120n,
@@ -101,7 +103,7 @@ router.post('/createOrder', async (req, res) => {
                     dstWithdrawal: 10n,
                     dstPublicWithdrawal: 100n,
                     dstCancellation: 101n
-                }),
+                }).setDeployedAt(150n),
                 srcChainId: CHAIN_MAPPINGS[srcChainId],
                 dstChainId: CHAIN_MAPPINGS[dstChainId],
                 srcSafetyDeposit: ethers.parseEther('0.001'),
@@ -117,10 +119,10 @@ router.post('/createOrder', async (req, res) => {
                 whitelist: [
                     {
                         address: new Address(ethereumConfig.resolverContractAddress),
-                        allowFrom: 0n
+                        allowFrom: 1n
                     }
                 ],
-                resolvingStartTime: 0n
+                resolvingStartTime: 1n
             },
             {
                 nonce: randBigInt(UINT_40_MAX),
@@ -137,7 +139,7 @@ router.post('/createOrder', async (req, res) => {
             limitOrderV4, orderHash, extension
         });
         await db.write();
-        res.json({ success: true, limitOrderV4, typedData, extension, secretHash })
+        res.json({ success: true, limitOrderV4, typedData, extension, secretHash, hashLock: hashLock.toString() })
     } catch (e: any) {
         return res.status(400).json({ error: 'Failed to create order', details: e.message });
     }
@@ -146,12 +148,12 @@ router.post('/createOrder', async (req, res) => {
 
 
 router.post('/fillOrder', async (req, res) => {
-    const { order, signature, srcChainId, extension, secretHash, coinObjectId = "" } = req.body
+    const { order, signature, srcChainId, extension, secretHash, coinObjectId = "", hashLock } = req.body
     const orderInstance = CrossChainOrder.fromDataAndExtension(order, Extension.decode(extension))
     const orderHash = orderInstance.getOrderHash(srcChainId)
     const ethereumResolverWallet = new Wallet(ethereumConfig.resolverPk, provider);
-    const resolverContract = new EthereumResolverContract(ethereumConfig.resolverContractAddress, "APTOS_RESOLVER_ADDRESS")
-
+    const resolverContract = new EthereumResolverContract(ethereumConfig.resolverContractAddress, SUI_CONFIG.RESOLVER_PROXY_ADDRESS)
+    const ethereumFactory = new EscrowFactory(provider, ethereumConfig.escrowFactoryContractAddress);
 
     const fillAmount = orderInstance.makingAmount
     const takingAmount = orderInstance.takingAmount
@@ -209,8 +211,8 @@ router.post('/fillOrder', async (req, res) => {
 
 
 
-        const ethereumFactory = new EscrowFactory(provider, ethereumConfig.escrowFactoryContractAddress);
         const ethereumEscrowEvent = await ethereumFactory.getSrcDeployEvent(ethereumDeployBlock)
+
 
         const ESCROW_SRC_IMPLEMENTATION = await ethereumFactory.getSourceImpl()
         const srcEscrowAddress = new InchEscrowFactory(new Address(ethereumConfig.escrowFactoryContractAddress)).getSrcEscrowAddress(
@@ -237,6 +239,7 @@ router.post('/fillOrder', async (req, res) => {
     if (srcChainId === SUI_CHAIN_ID) {
         const proxyEthAddress = orderInstance.maker.toString();
         const makerAddressSui = await db.data.addressMappings.find(m => m.ethProxyAddress.toLowerCase() === proxyEthAddress.toLowerCase())?.suiAddress;
+
         if (!makerAddressSui) {
             console.error(`❌ No Sui address mapped to proxy Ethereum address ${proxyEthAddress} for chain id ${srcChainId}`);
             return res.status(400).json({ error: 'No Sui address mapped to proxy Ethereum address' });
@@ -266,14 +269,62 @@ router.post('/fillOrder', async (req, res) => {
             makerCoins[0].coinObjectId,
             SUI_CONFIG.USER_KEYPAIR
         ]
-        console.log("announce order args", announceOrderArgs)
+        // console.log("announce order args", announceOrderArgs)
         const announceSuccess = await announceOrder(SUI_CONFIG.SILVER_COIN_ADDRESS,
             Number(1000000000),
             1000000,
             1 * 1e6,
             secretHashU8,
             makerCoins[0].coinObjectId,
-            SUI_CONFIG.USER_KEYPAIR);
+            SUI_CONFIG.USER_KEYPAIR
+            // signature        
+        ); // ideally this should have been called by resolver
+        console.log({ announceSuccess })
+
+        // user's balance on sui chain will decrease
+
+        // fund_src_escrow on ethereum chain 
+        const taker = orderInstance.receiver
+        const takingAmount = orderInstance.takingAmount
+        const hashLockDecoded = HashLock.fromString(hashLock)
+        const immutables = orderInstance.toSrcImmutables(srcChainId, taker, takingAmount, hashLockDecoded);
+
+        console.log("Deployed at", immutables.timeLocks.deployedAt)
+        const { txHash: orderFillHash, blockHash: ethereumDeployBlock } = await ethereumResolverWallet.send(
+            resolverContract.deployDst(
+                immutables
+            )
+        )
+
+
+        const ESCROW_DST_IMPLEMENTATION = await ethereumFactory.getDestinationImpl()
+        const dstEscrowAddress = new InchEscrowFactory(new Address(ethereumConfig.escrowFactoryContractAddress))
+            .getDstEscrowAddress(
+                immutables,
+                DstImmutablesComplement.new({
+                    amount: immutables.amount,
+                    maker: immutables.maker,
+                    safetyDeposit: immutables.safetyDeposit,
+                    token: immutables.token
+                }),
+                0n,
+                immutables.taker,
+                ESCROW_DST_IMPLEMENTATION
+            )
+
+        const originalSecret = ethers.toUtf8Bytes("my_secret_password_for_swap_test")
+        const hexSecret = uint8ArrayToHex(originalSecret)
+
+        const { txHash: resolverWithdrawHash } = await ethereumResolverWallet.send(
+            resolverContract.withdraw('dst', dstEscrowAddress, hexSecret, immutables)
+        )
+
+        console.log("resolver withdraw")
+
+        // console.log({ orderFillHash, ethereumDeployBlock })
+
+        // resolver will claim fund for user on ethereum chain
+        // resolver will claim fund on sui for himself
 
         console.log("Announce success: ", announceSuccess)
     }
