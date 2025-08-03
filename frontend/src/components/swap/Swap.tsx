@@ -384,6 +384,7 @@ export default function SwapComponent() {
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
+        <h1 className="font-bold text-5xl -mt-4 text-center">Fusion Plus Sui</h1>
         <Card className="bg-gray-900 border-gray-800 shadow-2xl">
           <CardContent className="p-6 space-y-4">
             {/* Existing Swap UI */}

@@ -48,7 +48,7 @@ Content-Type: application/json
 
 
 ### Fill order
-POST http://localhost:3004/relayer/fillOrder
+POST http://localhost:3004/relayer/submitOrder
 content-type: application/json
 
 {
