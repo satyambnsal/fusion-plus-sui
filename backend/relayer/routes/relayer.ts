@@ -162,19 +162,19 @@ router.get('/checkOrderStatus', async (req, res) => {
             });
         }
 
-        const filledOrder = db.data.filledOrders.find(
+        const order = db.data.orderStatuses.find(
             (order) => order.orderHash === orderHash
         );
 
-        if (!filledOrder) {
+        if (!order) {
             return res.status(404).json({
-                error: 'Order not found or not filled'
+                error: `Order not found for hash ${orderHash}`
             });
         }
 
         return res.status(200).json({
             status: 'filled',
-            filledOrder
+            order
         });
 
     } catch (error) {
