@@ -1,5 +1,5 @@
 import WebSocket from 'ws';
-import { ETH_CHAIN_ID, ethereumConfig, provider, SOCKET_EVENTS, SUI_CONFIG, suiClient } from '../config';
+import { ETH_CHAIN_ID, ethereumConfig, provider, SEPOLIA_EXPLORER_BASE_URL, SOCKET_EVENTS, SUI_CONFIG, SUI_TESTNET_EX_BASE_URL, suiClient } from '../config';
 import { AmountMode, CrossChainOrder, Extension, HashLock, TakerTraits, EscrowFactory as InchEscrowFactory, Address } from '@1inch/cross-chain-sdk';
 import { Wallet } from '../lib/wallet';
 import { Resolver as EthereumResolverContract } from '../lib/resolver.js';
@@ -11,7 +11,9 @@ import { uint8ArrayToHex } from '@1inch/byte-utils';
 import { sleep } from 'bun';
 
 
-const WS_URL = 'ws://localhost:3004';
+const PORT = process.env.PORT || 3004
+const WS_URL = `ws://localhost:${PORT}`;
+
 const RECONNECT_INTERVAL = 1000;
 const MAX_RECONNECT_ATTEMPTS = 10;
 const ethereumResolverWallet = new Wallet(ethereumConfig.resolverPk, provider);
@@ -80,7 +82,6 @@ const processNewOrder = async (data) => {
     const fillAmount = orderInstance.makingAmount;
     const takingAmount = orderInstance.takingAmount;
     console.log(`Resolver 2 is filling order for order hash ${orderHash}`);
-    await createOrUpdateOrderStatus(orderHash, { isFilling: true })
     let srcEscrowDeployTxHash;
     let dstEscrowDeployTxHash;
     let srcClaimTxHash;
@@ -96,6 +97,7 @@ const processNewOrder = async (data) => {
         console.error(`❌ No Sui address mapped to proxy Ethereum address ${proxyEthAddress}`);
         return;
       }
+      await createOrUpdateOrderStatus(orderHash, { isFilling: true, maker: orderInstance.maker.toString(), receiver: receiverAddressSui })
       const { txHash, blockHash: ethereumDeployBlock } = await ethereumResolverWallet.send(
         resolverContract.deploySrc(
           srcChainId,
@@ -178,16 +180,17 @@ const processNewOrder = async (data) => {
       errorMessage = error.toString()
     } finally {
       const payload = {
+        srcChainId,
         orderHash,
-        srcEscrowDeployTxHash: srcEscrowDeployTxHash || '',
-        dstEscrowDeployTxHash,
-        srcClaimTxHash,
-        dstClaimTxHash,
+        srcEscrowDeployTxHash: srcEscrowDeployTxHash ? `${SEPOLIA_EXPLORER_BASE_URL}/${srcEscrowDeployTxHash}` : '',
+        dstEscrowDeployTxHash: dstEscrowDeployTxHash ? `${SUI_TESTNET_EX_BASE_URL}/${dstEscrowDeployTxHash}` : '',
+        srcClaimTxHash: srcClaimTxHash ? `${SEPOLIA_EXPLORER_BASE_URL}/${srcClaimTxHash}` : '',
+        dstClaimTxHash: dstClaimTxHash ? `${SUI_TESTNET_EX_BASE_URL}/${dstClaimTxHash}` : '',
         isFilling: false,
-        isFilled: !errorMessage
+        isFilled: !errorMessage,
+        errorMessage
       };
       await createOrUpdateOrderStatus(orderHash, payload)
-      await db.write();
     }
   }
 };

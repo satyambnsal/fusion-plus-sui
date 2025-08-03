@@ -72,3 +72,5 @@ export const SOCKET_EVENTS = {
   "ORDER_READY_FOR_FILL": "ORDER_READY_FOR_FILL",
   "ORDER_FILLED": "ORDER_FILLED"
 }
+export const SEPOLIA_EXPLORER_BASE_URL = "https://sepolia.etherscan.io/tx"
+export const SUI_TESTNET_EX_BASE_URL = "https://testnet.suivision.xyz/txblock"

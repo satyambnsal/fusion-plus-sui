@@ -14,6 +14,8 @@ type Data = {
     secret: string
   }[]
   orderStatuses: {
+    maker: string,
+    receiver: string,
     orderHash: string,
     isFilling: boolean,
     isFilled: boolean,
@@ -22,12 +24,14 @@ type Data = {
     srcEscrowDeployTxHash: string,
     dstEscrowDeployTxHash: string,
     errorMessage?: string
+    srcChainId: number
   }[]
 }
 
 const defaultData: Data = { quotes: [], orders: [], addressMappings: [], orderSecrets: [], orderStatuses: [] }
 
 export const db = await JSONFilePreset<Data>('db_data.json', defaultData)
+
 
 // migration
 if (!db.data.orderSecrets) {
@@ -46,7 +50,10 @@ export async function createOrUpdateOrderStatus(
 
     if (index === -1) {
       db.data.orderStatuses.push({
+        srcChainId: 0,
         orderHash,
+        maker: "",
+        receiver: "",
         isFilling: false,
         isFilled: false,
         srcClaimTxHash: '',

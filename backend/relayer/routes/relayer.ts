@@ -185,5 +185,37 @@ router.get('/checkOrderStatus', async (req, res) => {
     }
 })
 
+router.get('/getOrderStatusesByMaker', async (req, res) => {
+    try {
+        const { maker } = req.query;
+        if (!maker || typeof maker !== 'string') {
+            return res.status(400).json({
+                error: 'Invalid or missing maker query parameter'
+            });
+        }
+
+        const orders = db.data.orderStatuses.filter(
+            (order) => order.maker?.toLowerCase() === maker.toLowerCase()
+        );
+
+        if (orders.length === 0) {
+            return res.status(404).json({
+                error: `No orders found for maker address ${maker}`
+            });
+        }
+
+        return res.status(200).json({
+            status: 'success',
+            orders
+        });
+
+    } catch (error) {
+        console.error('Error fetching order statuses by maker:', error);
+        return res.status(500).json({
+            error: 'Internal server error'
+        });
+    }
+});
+
 
 export default router

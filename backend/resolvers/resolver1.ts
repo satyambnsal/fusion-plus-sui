@@ -1,5 +1,5 @@
 import WebSocket from 'ws';
-import { ethereumConfig, provider, SOCKET_EVENTS, SUI_CHAIN_ID, SUI_CONFIG, suiClient } from '../config';
+import { ethereumConfig, provider, SEPOLIA_EXPLORER_BASE_URL, SOCKET_EVENTS, SUI_CHAIN_ID, SUI_CONFIG, SUI_TESTNET_EX_BASE_URL, suiClient } from '../config';
 import { Address, CrossChainOrder, DstImmutablesComplement, Extension, HashLock, EscrowFactory as InchEscrowFactory } from '@1inch/cross-chain-sdk';
 import { ethers } from 'ethers';
 import { Resolver as EthereumResolverContract } from '../lib/resolver.js';
@@ -11,7 +11,8 @@ import { uint8ArrayToHex } from '@1inch/byte-utils';
 import { Wallet } from '../lib/wallet.js';
 import { getEthereumTokenBalance } from '../lib/utils.js';
 
-const WS_URL = 'ws://localhost:3004';
+const PORT = process.env.PORT || 3004
+const WS_URL = `ws://localhost:${PORT}`;
 const RECONNECT_INTERVAL = 1000;
 const MAX_RECONNECT_ATTEMPTS = 10;
 
@@ -38,6 +39,7 @@ const connectWebSocket = () => {
       if (srcChainId === SUI_CHAIN_ID) {
         const orderInstance = CrossChainOrder.fromDataAndExtension(order, Extension.decode(extension));
         const orderHash = orderInstance.getOrderHash(srcChainId);
+        const taker = orderInstance.receiver;
 
         const hashLock = HashLock.fromString(secretHash);
         const fillAmount = orderInstance.makingAmount;
@@ -47,8 +49,6 @@ const connectWebSocket = () => {
         let srcClaimTxHash;
         let dstClaimTxHash;
         let errorMessage;
-
-        await createOrUpdateOrderStatus(orderHash, { isFilling: true })
         console.log(`Resolver 1 is filling order for order hash ${orderHash} for chain id ${srcChainId}`);
 
         try {
@@ -61,6 +61,7 @@ const connectWebSocket = () => {
             console.error(`❌ No Sui address mapped to proxy Ethereum address ${proxyEthAddress} for chain id ${srcChainId}`);
             return;
           }
+          await createOrUpdateOrderStatus(orderHash, { isFilling: true, srcChainId, maker: makerAddressSui, receiver: taker.toString() })
 
           const makerCoins = await findCoinsOfType(suiClient, SUI_CONFIG.SILVER_COIN_ADDRESS, makerAddressSui);
           if (makerCoins.length === 0) {
@@ -88,9 +89,6 @@ const connectWebSocket = () => {
           makerBalance = await getBalance(SUI_CONFIG.SILVER_COIN_ADDRESS, makerAddressSui);
           console.log(`Maker total balance after announce order ${makerBalance.totalBalance}`);
 
-
-
-          const taker = orderInstance.receiver;
           const immutables = orderInstance.toSrcImmutables(srcChainId, taker, takingAmount, hashLock);
 
           const { txHash, blockHash: ethereumDeployBlock } = await ethereumResolverWallet.send(
@@ -145,16 +143,17 @@ const connectWebSocket = () => {
           errorMessage = error.toString();
         } finally {
           const payload = {
+            srcChainId,
             orderHash,
-            srcEscrowDeployTxHash: srcEscrowDeployTxHash || '',
-            dstEscrowDeployTxHash,
-            srcClaimTxHash,
-            dstClaimTxHash,
+            srcEscrowDeployTxHash: srcEscrowDeployTxHash ? `${SUI_TESTNET_EX_BASE_URL}/${srcEscrowDeployTxHash}` : '',
+            dstEscrowDeployTxHash: dstEscrowDeployTxHash ? `${SEPOLIA_EXPLORER_BASE_URL}/${dstEscrowDeployTxHash}` : '',
+            srcClaimTxHash: srcClaimTxHash ? `${SUI_TESTNET_EX_BASE_URL}/${srcClaimTxHash}` : '',
+            dstClaimTxHash: dstClaimTxHash ? `${SEPOLIA_EXPLORER_BASE_URL}/${dstClaimTxHash}` : '',
             isFilling: false,
-            isFilled: !errorMessage
+            isFilled: !errorMessage,
+            errorMessage
           };
           await createOrUpdateOrderStatus(orderHash, payload)
-          await db.write();
         }
       }
 
