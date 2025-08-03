@@ -147,7 +147,6 @@ router.post('/createOrder', async (req, res) => {
             secret
         });
         await db.write();
-        broadcastNewOrder(limitOrderV4);
         res.json({ success: true, limitOrderV4, typedData, extension, secretHash })
     } catch (e: any) {
         return res.status(400).json({ error: 'Failed to create order', details: e.message });
@@ -158,6 +157,8 @@ router.post('/createOrder', async (req, res) => {
 
 router.post('/submitOrder', async (req, res) => {
     const { order, signature, srcChainId, extension, secretHash } = req.body
+
+    broadcastNewOrder({ order, signature, srcChainId, extension, secretHash })
     const orderInstance = CrossChainOrder.fromDataAndExtension(order, Extension.decode(extension))
     const orderHash = orderInstance.getOrderHash(srcChainId)
     const hashLock = HashLock.fromString(secretHash)

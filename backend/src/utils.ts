@@ -38,9 +38,9 @@ export const getEthereumTokenBalance = async (tokenAddress: string, userAddress:
 }
 
 
-export function broadcastNewOrder(orderData) {
+export function broadcastNewOrder(orderData: any) {
   const message = JSON.stringify({ event: 'newOrder', data: orderData });
-  resolvers.forEach((resolver) => {
+  resolvers.forEach((resolver: any) => {
     if (resolver.readyState === 1) { // 1 = OPEN
       resolver.send(message);
     }

@@ -5,7 +5,9 @@
     "email": "satyamsgsits1994@gmail.com"
   },
   "scripts": {
-    "dev": "bun --watch run src/server.ts"
+    "dev": "bun --watch run src/server.ts",
+    "resolver1": "bun --watch run resolvers/resolver1.ts",
+    "resolver2": "bun --watch run resolvers/resolver2.ts"
   },
   "dependencies": {
     "@1inch/cross-chain-sdk": "^0.1.15",
