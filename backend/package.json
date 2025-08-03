@@ -5,7 +5,7 @@
     "email": "satyamsgsits1994@gmail.com"
   },
   "scripts": {
-    "dev": "bun --watch run src/server.ts",
+    "relayer:dev": "bun --watch run relayer/server.ts",
     "resolver1": "bun --watch run resolvers/resolver1.ts",
     "resolver2": "bun --watch run resolvers/resolver2.ts"
   },
