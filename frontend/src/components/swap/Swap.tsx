@@ -22,6 +22,7 @@ import { useCurrentAccount, useSignPersonalMessage } from '@mysten/dapp-kit'
 import { useSuiBalance } from '@/hooks/useSuiBalance'
 import { useEthBalance } from '@/hooks/useEthBalance'
 import { CrossChainOrder, Extension } from '@1inch/cross-chain-sdk'
+import OrderHistoryByMaker from '../OrderHistoryByMaker'
 
 const getTokenData = (address: string): Token =>
   tokens.find((token) => token.address === address) || tokens[0]
@@ -104,22 +105,21 @@ export default function SwapComponent() {
   const { address, isConnected } = useAccount()
   const suiAccount = useCurrentAccount()
   const { balance: suiTokenBalance } = useSuiBalance(tokens[1].addressv2)
-  const [fromTokenBalance, setFromTokenBalance] = useState('00')
-  const [toTokenBalance, setToTokenBalance] = useState('')
+  const [fromTokenBalance, setFromTokenBalance] = useState('0.0')
+  const [toTokenBalance, setToTokenBalance] = useState('0.0')
   const [ethSignature, setEthSignature] = useState('')
   const [suiSignature, setSuiSignature] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [orderStatus, setOrderStatus] = useState<'pending' | 'success' | null>(null)
-  // New state for order history
   const [orderHistory, setOrderHistory] = useState<
     { hash: string; status: 'pending' | 'success' | 'unknown' | null }[]
   >([])
   const [isCheckingStatus, setIsCheckingStatus] = useState<{ [key: string]: boolean }>({})
+  const [activeTab, setActiveTab] = useState<'swap' | 'history' | 'allOrders'>('swap')
 
   const { mutate: signPersonalMessage } = useSignPersonalMessage()
   const { balance: ethTokenBalance } = useEthBalance(tokens[0].addressv2)
 
-  // Load order history from local storage on mount
   useEffect(() => {
     const savedOrders = localStorage.getItem('orderHistory')
     if (savedOrders) {
@@ -127,7 +127,6 @@ export default function SwapComponent() {
     }
   }, [])
 
-  // Save order history to local storage whenever it changes
   useEffect(() => {
     localStorage.setItem('orderHistory', JSON.stringify(orderHistory))
   }, [orderHistory])
@@ -271,7 +270,6 @@ export default function SwapComponent() {
       )
       setOrderInstance(newOrderInstance)
 
-      // Add new order hash to history
       const orderHash = newOrderInstance.getOrderHash(from.chainId)
       setOrderHistory((prev) => [...prev, { hash: orderHash, status: 'pending' }])
 
@@ -382,224 +380,275 @@ export default function SwapComponent() {
 
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-6">
-        <h1 className="font-bold text-5xl -mt-4 text-center">Fusion Plus Sui</h1>
-        <Card className="bg-gray-900 border-gray-800 shadow-2xl">
-          <CardContent className="p-6 space-y-4">
-            {/* Existing Swap UI */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <label className="text-sm font-medium text-gray-400">From</label>
-                <span className="text-xs text-gray-500">{fromTokenBalance}</span>
-              </div>
-              <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-                <div className="flex items-center gap-3">
-                  <Select value={fromToken} onValueChange={setFromToken}>
-                    <SelectTrigger className="w-32 bg-gray-700 border-gray-600 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-gray-800 border-gray-700">
-                      {tokens.map((token) => (
-                        <SelectItem
-                          key={token.symbol}
-                          value={token.address}
-                          className="text-white hover:bg-gray-700"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className={`text-lg ${token.color}`}>{token.icon}</span>
-                            <span>{token.symbol}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    type="number"
-                    placeholder="0.0"
-                    value={fromAmount}
-                    onChange={(e) => setFromAmount(e.target.value)}
-                    className="flex-1 bg-transparent border-none text-right text-xl font-semibold text-white placeholder:text-gray-500 focus-visible:ring-0"
-                  />
-                </div>
-                <div className="flex justify-between items-center mt-2">
-                  <span className="text-xs text-gray-500">{getTokenData(fromToken).name}</span>
-                  <span className="text-xs text-gray-500">≈ $0.00</span>
-                </div>
-                <div className="flex justify-between items-center mt-1">
-                  <span className="text-xs text-gray-400">
-                    Address: {truncateAddress(getTokenData(fromToken).address)}
-                  </span>
-                </div>
-              </div>
-            </div>
+      {/* Increased max-width from max-w-md to max-w-2xl */}
+      <div className="w-full max-w-2xl space-y-6">
+        <h1 className="font-bold text-5xl -mt-4 text-center text-white">Fusion Plus Sui</h1>
 
-            <div className="flex justify-center">
-              <Button
-                onClick={handleSwapTokens}
-                variant="ghost"
-                size="icon"
-                className="w-10 h-10 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
-                disabled={isSwapping}
-              >
-                <ArrowUpDown className="w-4 h-4" />
-              </Button>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <label className="text-sm font-medium text-gray-400">To</label>
-                <span className="text-xs text-gray-500">{toTokenBalance}</span>
-              </div>
-              <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-                <div className="flex items-center gap-3">
-                  <Select value={toToken} onValueChange={setToToken}>
-                    <SelectTrigger className="w-32 bg-gray-700 border-gray-600 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-gray-800 border-gray-700">
-                      {tokens.map((token) => (
-                        <SelectItem
-                          key={token.symbol}
-                          value={token.address}
-                          className="text-white hover:bg-gray-700"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className={`text-lg ${token.color}`}>{token.icon}</span>
-                            <span>{token.symbol}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <div className="flex-1 relative">
-                    <Input
-                      type="number"
-                      placeholder="0.0"
-                      value={toAmount}
-                      readOnly
-                      className="flex-1 bg-transparent border-none text-right text-xl font-semibold text-white placeholder:text-gray-500 focus-visible:ring-0"
-                    />
-                    {isLoadingQuote && (
-                      <Loader2 className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
-                    )}
-                  </div>
-                </div>
-                <div className="flex justify-between items-center mt-2">
-                  <span className="text-xs text-gray-500">{getTokenData(toToken).name}</span>
-                  <span className="text-xs text-gray-500">≈ $0.00</span>
-                </div>
-                <div className="flex justify-between items-center mt-1">
-                  <span className="text-xs text-gray-400">
-                    Address: {truncateAddress(getTokenData(toToken).address)}
-                  </span>
-                </div>
-              </div>
-            </div>
+        {/* Tab Switcher */}
+        <div className="flex justify-center space-x-2 bg-gray-900 rounded-xl p-1 border border-gray-800">
+          <Button
+            variant={activeTab === 'swap' ? 'default' : 'ghost'}
+            onClick={() => setActiveTab('swap')}
+            className={`${
+              activeTab === 'swap' ? 'bg-white text-black' : 'text-gray-400'
+            } hover:bg-white/80 hover:text-black/80 flex-1`}
+          >
+            Swap
+          </Button>
+          <Button
+            variant={activeTab === 'history' ? 'default' : 'ghost'}
+            onClick={() => setActiveTab('history')}
+            className={`${
+              activeTab === 'history' ? 'bg-white text-black' : 'text-gray-400'
+            } hover:bg-white/80 hover:text-black/80 flex-1`}
+          >
+            Local History
+          </Button>
+          <Button
+            variant={activeTab === 'allOrders' ? 'default' : 'ghost'}
+            onClick={() => setActiveTab('allOrders')}
+            className={`${
+              activeTab === 'allOrders' ? 'bg-white text-black' : 'text-gray-400'
+            } hover:bg-white/80 hover:text-black/80 flex-1`}
+          >
+            All Orders
+          </Button>
+        </div>
 
-            <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 space-y-2">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-400">Network Fee</span>
-                <span className="text-white">~$2.50</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-400">Price Impact</span>
-                <span className="text-green-400">{'<0.01%'}</span>
-              </div>
-            </div>
-            {quoteError && <div className="text-red-400 text-sm text-center">{quoteError}</div>}
-            {orderStatus === 'pending' && (
-              <div className="text-center text-yellow-400 text-sm">
-                Checking order status...{' '}
-                <Loader2 className="inline-block ml-2 h-4 w-4 animate-spin" />
-              </div>
-            )}
-            {orderStatus === 'success' && (
-              <div className="text-center text-green-400 text-sm font-semibold">
-                Order filled successfully!
-              </div>
-            )}
-            <Button
-              className="w-full h-14 bg-white text-black hover:bg-white/80 hover:text-black/80 font-semibold text-lg rounded-xl transition-all duration-200"
-              onClick={handleSwap}
-              disabled={isSwapDisabled}
-            >
-              {isSwapping ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : !isConnected ? (
-                'Connect Wallet'
-              ) : !fromAmount ? (
-                'Enter Amount'
-              ) : (
-                'Create Swap Order'
-              )}
-            </Button>
-            {order && (
-              <Button
-                className="w-full h-14 bg-white text-black hover:bg-white/80 hover:text-black/80 font-semibold text-lg rounded-xl transition-all duration-200"
-                onClick={handleSignOrder}
-                disabled={isSignOrderDisabled}
-              >
-                Sign Order
-              </Button>
-            )}
-            {order && (suiSignature || ethSignature) && (
-              <Button
-                className="w-full h-14 bg-white text-black hover:bg-white/80 hover:text-black/80 font-semibold text-lg rounded-xl transition-all duration-200"
-                onClick={handleSubmitOrder}
-              >
-                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Submit Order'}
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* New Order History Section */}
-        <Card className="bg-gray-900 border-gray-800 shadow-2xl">
-          <CardContent className="p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-white">Order History</h2>
-            {orderHistory.length === 0 ? (
-              <p className="text-gray-400 text-sm">No previous orders found.</p>
-            ) : (
-              <div className="space-y-2">
-                {orderHistory.map((order) => (
-                  <div
-                    key={order.hash}
-                    className="flex justify-between items-center bg-gray-800 p-3 rounded-lg border border-gray-700"
-                  >
-                    <div className="flex flex-col">
-                      <span className="text-sm text-white">
-                        Order Hash: {truncateAddress(order.hash)}
-                      </span>
-                      <span
-                        className={`text-xs ${
-                          order.status === 'success'
-                            ? 'text-green-400'
-                            : order.status === 'pending'
-                            ? 'text-yellow-400'
-                            : 'text-gray-400'
-                        }`}
-                      >
-                        Status: {order.status || 'Unknown'}
-                      </span>
+        {/* Tab Content Container with fixed min-height and scrollable content */}
+        <div className="min-h-[600px] flex flex-col">
+          <Card className="bg-gray-900 border-gray-800 shadow-2xl flex-1 overflow-auto">
+            <CardContent className="p-6 space-y-4">
+              {activeTab === 'swap' && (
+                <div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <label className="text-sm font-medium text-gray-400">From</label>
+                      <span className="text-xs text-gray-500">{fromTokenBalance}</span>
                     </div>
+                    <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+                      <div className="flex items-center gap-3">
+                        <Select value={fromToken} onValueChange={setFromToken}>
+                          <SelectTrigger className="w-32 bg-gray-700 border-gray-600 text-white">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-gray-800 border-gray-700">
+                            {tokens.map((token) => (
+                              <SelectItem
+                                key={token.symbol}
+                                value={token.address}
+                                className="text-white hover:bg-gray-700"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-lg ${token.color}`}>{token.icon}</span>
+                                  <span>{token.symbol}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          type="number"
+                          placeholder="0.0"
+                          value={fromAmount}
+                          onChange={(e) => setFromAmount(e.target.value)}
+                          className="flex-1 bg-transparent border-none text-right text-xl font-semibold text-white placeholder:text-gray-500 focus-visible:ring-0"
+                        />
+                      </div>
+                      <div className="flex justify-between items-center mt-2">
+                        <span className="text-xs text-gray-500">
+                          {getTokenData(fromToken).name}
+                        </span>
+                        <span className="text-xs text-gray-500">≈ $0.00</span>
+                      </div>
+                      <div className="flex justify-between items-center mt-1">
+                        <span className="text-xs text-gray-400">
+                          Address: {truncateAddress(getTokenData(fromToken).address)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-center my-4">
                     <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => checkOrderStatus(order.hash)}
-                      disabled={isCheckingStatus[order.hash]}
-                      className="text-white border-gray-600 hover:bg-gray-700"
+                      onClick={handleSwapTokens}
+                      variant="ghost"
+                      size="icon"
+                      className="w-10 h-10 rounded-full bg-gray-800 border border-gray-700 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+                      disabled={isSwapping}
                     >
-                      {isCheckingStatus[order.hash] ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        'Check Status'
-                      )}
+                      <ArrowUpDown className="w-4 h-4" />
                     </Button>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <label className="text-sm font-medium text-gray-400">To</label>
+                      <span className="text-xs text-gray-500">{toTokenBalance}</span>
+                    </div>
+                    <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+                      <div className="flex items-center gap-3">
+                        <Select value={toToken} onValueChange={setToToken}>
+                          <SelectTrigger className="w-32 bg-gray-700 border-gray-600 text-white">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-gray-800 border-gray-700">
+                            {tokens.map((token) => (
+                              <SelectItem
+                                key={token.symbol}
+                                value={token.address}
+                                className="text-white hover:bg-gray-700"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-lg ${token.color}`}>{token.icon}</span>
+                                  <span>{token.symbol}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="flex-1 relative">
+                          <Input
+                            type="number"
+                            placeholder="0.0"
+                            value={toAmount}
+                            readOnly
+                            className="flex-1 bg-transparent border-none text-right text-xl font-semibold text-white placeholder:text-gray-500 focus-visible:ring-0"
+                          />
+                          {isLoadingQuote && (
+                            <Loader2 className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center mt-2">
+                        <span className="text-xs text-gray-500">{getTokenData(toToken).name}</span>
+                        <span className="text-xs text-gray-500">≈ $0.00</span>
+                      </div>
+                      <div className="flex justify-between items-center mt-1">
+                        <span className="text-xs text-gray-400">
+                          Address: {truncateAddress(getTokenData(toToken).address)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 space-y-2">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-400">Network Fee</span>
+                      <span className="text-white">~$2.50</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-400">Price Impact</span>
+                      <span className="text-green-400">{'<0.01%'}</span>
+                    </div>
+                  </div>
+                  {quoteError && (
+                    <div className="text-red-400 text-sm text-center">{quoteError}</div>
+                  )}
+                  {orderStatus === 'pending' && (
+                    <div className="text-center text-yellow-400 text-sm">
+                      Checking order status...{' '}
+                      <Loader2 className="inline-block ml-2 h-4 w-4 animate-spin" />
+                    </div>
+                  )}
+                  {orderStatus === 'success' && (
+                    <div className="text-center text-green-400 text-sm font-semibold">
+                      Order filled successfully!
+                    </div>
+                  )}
+                  <Button
+                    className="mt-4 w-full h-14 bg-white text-black hover:bg-white/80 hover:text-black/80 font-semibold text-lg rounded-xl transition-all duration-200"
+                    onClick={handleSwap}
+                    disabled={isSwapDisabled}
+                  >
+                    {isSwapping ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : !isConnected ? (
+                      'Connect Wallet'
+                    ) : !fromAmount ? (
+                      'Enter Amount'
+                    ) : (
+                      'Create Swap Order'
+                    )}
+                  </Button>
+                  {order && (
+                    <Button
+                      className="mt-4 w-full h-14 bg-white text-black hover:bg-white/80 hover:text-black/80 font-semibold text-lg rounded-xl transition-all duration-200"
+                      onClick={handleSignOrder}
+                      disabled={isSignOrderDisabled}
+                    >
+                      Sign Order
+                    </Button>
+                  )}
+                  {order && (suiSignature || ethSignature) && (
+                    <Button
+                      className="mt-4 w-full h-14 bg-white text-black hover:bg-white/80 hover:text-black/80 font-semibold text-lg rounded-xl transition-all duration-200"
+                      onClick={handleSubmitOrder}
+                    >
+                      {isSubmitting ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        'Submit Order'
+                      )}
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'history' && (
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Local Order History</h2>
+                  {orderHistory.length === 0 ? (
+                    <p className="text-gray-400 text-sm">No previous orders found.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                      {orderHistory.map((order) => (
+                        <div
+                          key={order.hash}
+                          className="flex justify-between items-center bg-gray-800 p-3 rounded-lg border border-gray-700"
+                        >
+                          <div className="flex flex-col">
+                            <span className="text-sm text-white">
+                              Order Hash: {truncateAddress(order.hash)}
+                            </span>
+                            <span
+                              className={`text-xs ${
+                                order.status === 'success'
+                                  ? 'text-green-400'
+                                  : order.status === 'pending'
+                                  ? 'text-yellow-400'
+                                  : 'text-gray-400'
+                              }`}
+                            >
+                              Status: {order.status || 'Unknown'}
+                            </span>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => checkOrderStatus(order.hash)}
+                            disabled={isCheckingStatus[order.hash]}
+                            className="text-white border-gray-600 hover:bg-gray-700"
+                          >
+                            {isCheckingStatus[order.hash] ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              'Check Status'
+                            )}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {activeTab === 'allOrders' && (
+                <div className="max-h-[400px] overflow-y-auto">
+                  <OrderHistoryByMaker />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
       <Toaster />
     </div>
