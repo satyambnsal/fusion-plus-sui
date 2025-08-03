@@ -125,6 +125,7 @@ async function fundSrcEscrow<T>(
     return {
       success: true,
       orderObjectId: createdObjects && createdObjects.length > 0 ? createdObjects[0].objectId : null,
+      txnHash: result.digest
     };
   } else {
     return {
@@ -172,6 +173,7 @@ async function fundDstEscrow<T>(
     return {
       success: true,
       orderObjectId: createdObjects && createdObjects.length > 0 ? createdObjects[0].objectId : null,
+      txnHash: result.digest
     };
   } else {
     return {

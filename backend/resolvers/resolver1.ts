@@ -1,6 +1,6 @@
 
 import WebSocket from 'ws';
-import { ethereumConfig, provider, SUI_CHAIN_ID, SUI_CONFIG, suiClient } from '../config';
+import { ethereumConfig, provider, SOCKET_EVENTS, SUI_CHAIN_ID, SUI_CONFIG, suiClient } from '../config';
 import { Address, CrossChainOrder, DstImmutablesComplement, Extension, HashLock, EscrowFactory as InchEscrowFactory, } from '@1inch/cross-chain-sdk';
 import { ethers } from 'ethers';
 import { Resolver as EthereumResolverContract } from '../lib/resolver.js';
@@ -13,7 +13,6 @@ import { Wallet } from '../lib/wallet.js';
 import { getEthereumTokenBalance } from '../lib/utils.js';
 
 
-
 const ws = new WebSocket('ws://localhost:3004');
 
 const ethereumResolverWallet = new Wallet(ethereumConfig.resolverPk, provider);
@@ -21,16 +20,21 @@ const resolverContract = new EthereumResolverContract(ethereumConfig.resolverCon
 const ethereumFactory = new EscrowFactory(provider, ethereumConfig.escrowFactoryContractAddress);
 
 console.log('######### Resolver 1: This resolver only fill order initiated from SUI blockchain')
+
 ws.on('open', () => {
   console.log('Connected to relayer WebSocket server');
 });
 
+
+
 ws.on('message', async (data: any) => {
   const message = JSON.parse(data);
-  if (message.event === 'newOrder') {
+  if (message.event === SOCKET_EVENTS.NEW_ORDER) {
+
     const { order, signature, srcChainId, extension, secretHash } = message.data;
+    // This resolver will only process order coming from SUI chain
+
     if (srcChainId === SUI_CHAIN_ID) {
-      // This resolver will only process order coming from SUI chain
 
       const orderInstance = CrossChainOrder.fromDataAndExtension(order, Extension.decode(extension))
       const orderHash = orderInstance.getOrderHash(srcChainId)
@@ -39,9 +43,6 @@ ws.on('message', async (data: any) => {
       const takingAmount = orderInstance.takingAmount
 
       console.log(`Resolver 1 is filling order for order hash ${orderHash}`)
-
-
-
       console.log({ srcChainId })
 
       const proxyEthAddress = orderInstance.maker.toString();
@@ -49,7 +50,6 @@ ws.on('message', async (data: any) => {
 
       if (!makerAddressSui) {
         console.error(`❌ No Sui address mapped to proxy Ethereum address ${proxyEthAddress} for chain id ${srcChainId}`);
-        // return res.status(400).json({ error: 'No Sui address mapped to proxy Ethereum address' });
         return
       }
 
@@ -68,7 +68,7 @@ ws.on('message', async (data: any) => {
       const secretHashU8 = new Uint8Array(ethers.getBytes(secretHash))
       let makerBalance = await getBalance(SUI_CONFIG.SILVER_COIN_ADDRESS, makerAddressSui)
       console.log(`Maker total balance before announce order ${makerBalance.totalBalance}`)
-      const { orderObjectId: srcEscrowOrderObjectId } = await fundSrcEscrow(SUI_CONFIG.SILVER_COIN_ADDRESS,
+      const { orderObjectId: srcEscrowOrderObjectId, txnHash: srcEscrowDeployTxHash } = await fundSrcEscrow(SUI_CONFIG.SILVER_COIN_ADDRESS,
         Number(1000000000),
         1000000,
         1 * 1e6,
@@ -87,13 +87,11 @@ ws.on('message', async (data: any) => {
       const taker = orderInstance.receiver
       const immutables = orderInstance.toSrcImmutables(srcChainId, taker, takingAmount, hashLock);
 
-      console.log("Deployed at", immutables.timeLocks.deployedAt)
-      const { txHash: orderFillHash, blockHash: ethereumDeployBlock } = await ethereumResolverWallet.send(
+      const { txHash: dstEscrowDeployTxHash, blockHash: ethereumDeployBlock } = await ethereumResolverWallet.send(
         resolverContract.deployDst(
           immutables
         )
       )
-
 
 
       const ESCROW_DST_IMPLEMENTATION = await ethereumFactory.getDestinationImpl()
@@ -113,9 +111,6 @@ ws.on('message', async (data: any) => {
 
       const originalSecret = ethers.toUtf8Bytes("my_secret_password_for_swap_test")
       const hexSecret = uint8ArrayToHex(originalSecret)
-
-      // here we fetch makers eth address and check balance
-
       let takerBalance = await getEthereumTokenBalance(ethereumConfig.tokens.USDC.address, taker.toString())
       console.log(`Taker ${taker.toString()} balance before withdraw ${takerBalance}`)
 
@@ -129,7 +124,6 @@ ws.on('message', async (data: any) => {
 
 
 
-      console.log("resolver withdraw")
       let resolverBalanceSui = await getBalance(SUI_CONFIG.SILVER_COIN_ADDRESS, SUI_CONFIG.RESOLVER_ADDRESS)
       console.log(`resolver total balance before claiming funss ${resolverBalanceSui.totalBalance}`)
       const claimFundResp = await claimFunds(suiClient, SUI_CONFIG.RESOLVER_KEYPAIR, SUI_CONFIG.SILVER_COIN_ADDRESS, srcEscrowOrderObjectId, originalSecret)
@@ -140,11 +134,20 @@ ws.on('message', async (data: any) => {
       // resolver will claim fund for user on ethereum chain
       // resolver will claim fund on sui for himself
 
+      const payload = {
+        orderHash,
+        srcEscrowDeployTxHash,
+        dstEscrowDeployTxHash
+      }
+      ws.send(JSON.stringify({ kind: SOCKET_EVENTS.ORDER_FILLED, data: payload }))
+
     } else {
       console.log(`Skipping this order as order is not initiated from SUI chain`)
     }
   }
 });
+
+
 
 ws.on('error', (error) => {
   console.error('WebSocket error:', error);

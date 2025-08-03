@@ -149,8 +149,17 @@ router.post('/createOrder', async (req, res) => {
 router.post('/submitOrder', async (req, res) => {
     const { order, signature, srcChainId, extension, secretHash } = req.body
     broadcastNewOrder(resolvers, { order, signature, srcChainId, extension, secretHash })
+    console.log("")
     res.json({ success: true, message: "Order submitted successfully" })
 })
 
+
+
+export const handleOrderFill = async (data: any) => {
+
+    console.log("handler order fill", data)
+
+
+}
 
 export default router

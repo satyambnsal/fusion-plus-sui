@@ -2,22 +2,31 @@ import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import swaggerUi from 'swagger-ui-express';
-import relayerRoutes from './routes/relayer';
+import relayerRoutes, { handleOrderFill } from './routes/relayer';
 import quoterRoutes from './routes/quote'
 import { db } from './db'
 import http from 'http'
 import { WebSocketServer } from 'ws';
+import { SOCKET_EVENTS } from '../config';
 const app = express();
 const port = process.env.PORT || 3004;
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
+
 export const resolvers = new Set();
 
 wss.on('connection', (ws) => {
   console.log('Resolver connected');
   resolvers.add(ws);
+
+  ws.on('message', async (data) => {
+    const parsedData = JSON.parse(data.toString())
+    if (parsedData.event === SOCKET_EVENTS.ORDER_READY_FOR_FILL) {
+      handleOrderFill(parsedData?.data)
+    }
+  })
 
   ws.on('close', () => {
     console.log('Resolver disconnected');

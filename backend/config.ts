@@ -65,3 +65,10 @@ export const CHAIN_MAPPINGS = {
 } as {
   [key: number]: number
 }
+
+
+export const SOCKET_EVENTS = {
+  "NEW_ORDER": "NEW_ORDER",
+  "ORDER_READY_FOR_FILL": "ORDER_READY_FOR_FILL",
+  "ORDER_FILLED": "ORDER_FILLED"
+}
