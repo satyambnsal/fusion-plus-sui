@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { config } from '../../config';
 import type { Preset, QuoterResponse } from '../types';
-import { db } from '../db'
+// import { db } from '../db'
 
 
 const quoteSchema = z.object({
@@ -108,8 +108,8 @@ const quoteHandler = async (req: Request, res: Response) => {
       recommendedPreset: 'fast',
     };
 
-    db.data.quotes.push(response);
-    await db.write();
+    // db.data.quotes.push(response);
+    // await db.write();
 
     return res.status(200).json(response);
   } catch (error) {
