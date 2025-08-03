@@ -18,7 +18,7 @@ import { Loader2 } from 'lucide-react'
 import { useDebounce } from 'use-debounce'
 import { Toaster, toast } from 'sonner'
 import { OrderResponse, QuoteResponse, Token } from '@/types'
-import { ETH_CHAIN_ID, SUI_CHAIN_ID, tokens } from '@/constants'
+import { API_BASE_URL, ETH_CHAIN_ID, SUI_CHAIN_ID, tokens } from '@/constants'
 import { useCurrentAccount, useSignPersonalMessage } from '@mysten/dapp-kit'
 import { useSuiBalance } from '@/hooks/useSuiBalance'
 import { useEthBalance } from '@/hooks/useEthBalance'
@@ -49,7 +49,7 @@ const useQuote = (
     try {
       const from = getTokenData(fromToken)
       const amount = Number(fromAmount) * 10 ** from.decimals
-      const response = await fetch('http://localhost:3004/quoter/quote/receive', {
+      const response = await fetch(`${API_BASE_URL}/quoter/quote/receive`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -74,16 +74,14 @@ const useQuote = (
     } finally {
       setIsLoadingQuote(false)
     }
-  }, [fromToken, toToken, fromAmount, walletAddress, toast])
+  }, [fromToken, toToken, fromAmount, walletAddress])
 
-  // Debounce the quote fetching to avoid excessive API calls
   const [debouncedFromAmount] = useDebounce(fromAmount, 500)
 
   useEffect(() => {
     fetchQuote()
   }, [fromToken, toToken, debouncedFromAmount, walletAddress, fetchQuote])
 
-  // Auto-refresh quote every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       if (fromToken && toToken && fromAmount && walletAddress) {
@@ -113,9 +111,27 @@ export default function SwapComponent() {
   const [suiSignature, setSuiSignature] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [orderStatus, setOrderStatus] = useState<'pending' | 'success' | null>(null)
+  // New state for order history
+  const [orderHistory, setOrderHistory] = useState<
+    { hash: string; status: 'pending' | 'success' | 'unknown' | null }[]
+  >([])
+  const [isCheckingStatus, setIsCheckingStatus] = useState<{ [key: string]: boolean }>({})
 
   const { mutate: signPersonalMessage } = useSignPersonalMessage()
   const { balance: ethTokenBalance } = useEthBalance(tokens[0].addressv2)
+
+  // Load order history from local storage on mount
+  useEffect(() => {
+    const savedOrders = localStorage.getItem('orderHistory')
+    if (savedOrders) {
+      setOrderHistory(JSON.parse(savedOrders))
+    }
+  }, [])
+
+  // Save order history to local storage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('orderHistory', JSON.stringify(orderHistory))
+  }, [orderHistory])
 
   useEffect(() => {
     const from = getTokenData(fromToken)
@@ -126,7 +142,7 @@ export default function SwapComponent() {
     if (to.chainId === ETH_CHAIN_ID) {
       setToTokenBalance(`${ethTokenBalance?.balance || 0} ${to.symbol}`)
     }
-  }, [ethTokenBalance])
+  }, [ethTokenBalance, fromToken, toToken])
 
   useEffect(() => {
     const from = getTokenData(fromToken)
@@ -143,7 +159,7 @@ export default function SwapComponent() {
       ).toString()
       setToTokenBalance(`${formattedBalance} ${to.symbol}`)
     }
-  }, [suiTokenBalance])
+  }, [suiTokenBalance, fromToken, toToken])
 
   const {
     quote,
@@ -151,7 +167,6 @@ export default function SwapComponent() {
     error: quoteError,
   } = useQuote(fromToken, toToken, fromAmount, address)
 
-  // Update toAmount based on quote
   useEffect(() => {
     if (quote && quote.presets.fast.startAmount) {
       const toTokenData = getTokenData(toToken)
@@ -163,23 +178,35 @@ export default function SwapComponent() {
   }, [quote, toToken])
 
   const checkOrderStatus = useCallback(async (orderHash: string) => {
+    setIsCheckingStatus((prev) => ({ ...prev, [orderHash]: true }))
     try {
       const response = await fetch(
-        `http://localhost:3004/relayer/checkOrderStatus?orderHash=${orderHash}`
+        `${API_BASE_URL}/relayer/checkOrderStatus?orderHash=${orderHash}`
       )
 
       if (response.status === 200) {
-        setOrderStatus('success')
-        toast.success('Order filled successfully!')
+        setOrderHistory((prev) =>
+          prev.map((order) => (order.hash === orderHash ? { ...order, status: 'success' } : order))
+        )
+        toast.success(`Order ${truncateAddress(orderHash)} filled successfully!`)
         return true
       } else if (response.status === 404) {
+        setOrderHistory((prev) =>
+          prev.map((order) => (order.hash === orderHash ? { ...order, status: 'pending' } : order))
+        )
         return false
       } else {
         throw new Error(`Unexpected status: ${response.status}`)
       }
     } catch (error) {
       console.error('Error checking order status:', error)
+      setOrderHistory((prev) =>
+        prev.map((order) => (order.hash === orderHash ? { ...order, status: 'unknown' } : order))
+      )
+      toast.error(`Failed to check status for order ${truncateAddress(orderHash)}.`)
       return false
+    } finally {
+      setIsCheckingStatus((prev) => ({ ...prev, [orderHash]: false }))
     }
   }, [])
 
@@ -217,12 +244,11 @@ export default function SwapComponent() {
       const maker = from.chainId === SUI_CHAIN_ID ? suiAccount?.address : address
       const receiver = from.chainId === SUI_CHAIN_ID ? address : suiAccount?.address
 
-      const orderResponse = await fetch('http://localhost:3004/relayer/createOrder', {
+      const orderResponse = await fetch(`${API_BASE_URL}/relayer/createOrder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           maker,
-          // receiver: '0x16797177f13095C9266c7772C6F1ca66809Bef84' || suiAccount.address,
           receiver,
           makingAmount: amount.toString(),
           takingAmount: takingAmount.toString(),
@@ -240,12 +266,16 @@ export default function SwapComponent() {
 
       const orderData = await orderResponse.json()
       setOrder(orderData)
-      setOrderInstance(
-        CrossChainOrder.fromDataAndExtension(
-          orderData.limitOrderV4,
-          Extension.decode(orderData.extension)
-        )
+      const newOrderInstance = CrossChainOrder.fromDataAndExtension(
+        orderData.limitOrderV4,
+        Extension.decode(orderData.extension)
       )
+      setOrderInstance(newOrderInstance)
+
+      // Add new order hash to history
+      const orderHash = newOrderInstance.getOrderHash(from.chainId)
+      setOrderHistory((prev) => [...prev, { hash: orderHash, status: 'pending' }])
+
       toast.success('Order created successfully. Please sign the order.')
     } catch (error) {
       console.error('Error in handleSwap:', error)
@@ -262,7 +292,6 @@ export default function SwapComponent() {
       let signature = null
 
       if (from.chainId === SUI_CHAIN_ID) {
-        // const permitMessage = createPermitMessage()
         const messagePayload = {
           owner: suiAccount?.address,
           amount: Number(orderInstance.makingAmount),
@@ -301,7 +330,7 @@ export default function SwapComponent() {
     }
     try {
       setIsSubmitting(true)
-      const response = await fetch('http://localhost:3004/relayer/submitOrder', {
+      const response = await fetch(`${API_BASE_URL}/relayer/submitOrder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -317,7 +346,7 @@ export default function SwapComponent() {
         throw new Error(`FillOrder API error: ${response.status}`)
       }
 
-      const orderHash = orderInstance.getOrderHash(from.chainId) // Assuming orderInstance has orderHash
+      const orderHash = orderInstance.getOrderHash(from.chainId)
       let attempts = 0
       const maxAttempts = 30
 
@@ -354,9 +383,10 @@ export default function SwapComponent() {
 
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-md space-y-6">
         <Card className="bg-gray-900 border-gray-800 shadow-2xl">
           <CardContent className="p-6 space-y-4">
+            {/* Existing Swap UI */}
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <label className="text-sm font-medium text-gray-400">From</label>
@@ -518,6 +548,55 @@ export default function SwapComponent() {
               >
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Submit Order'}
               </Button>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* New Order History Section */}
+        <Card className="bg-gray-900 border-gray-800 shadow-2xl">
+          <CardContent className="p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-white">Order History</h2>
+            {orderHistory.length === 0 ? (
+              <p className="text-gray-400 text-sm">No previous orders found.</p>
+            ) : (
+              <div className="space-y-2">
+                {orderHistory.map((order) => (
+                  <div
+                    key={order.hash}
+                    className="flex justify-between items-center bg-gray-800 p-3 rounded-lg border border-gray-700"
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-sm text-white">
+                        Order Hash: {truncateAddress(order.hash)}
+                      </span>
+                      <span
+                        className={`text-xs ${
+                          order.status === 'success'
+                            ? 'text-green-400'
+                            : order.status === 'pending'
+                            ? 'text-yellow-400'
+                            : 'text-gray-400'
+                        }`}
+                      >
+                        Status: {order.status || 'Unknown'}
+                      </span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => checkOrderStatus(order.hash)}
+                      disabled={isCheckingStatus[order.hash]}
+                      className="text-white border-gray-600 hover:bg-gray-700"
+                    >
+                      {isCheckingStatus[order.hash] ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        'Check Status'
+                      )}
+                    </Button>
+                  </div>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>

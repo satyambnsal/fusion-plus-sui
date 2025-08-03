@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { useAccount, useBalance } from 'wagmi';
 import { isAddress, zeroAddress } from 'viem';
@@ -32,8 +33,7 @@ export function useEthBalance(coinAddress: string): UseEthBalanceResult {
   // Fetch balance using wagmi's useBalance hook
   const { data: balanceData, isLoading, error: wagmiError, refetch } = useBalance({
     address: accountAddress,
-    token: isEth ? undefined : coinAddress,
-    enabled: isConnected && isValidAddress,
+    token: (isEth ? undefined : coinAddress) as any,
   });
 
   const fetchBalance = useCallback(async () => {

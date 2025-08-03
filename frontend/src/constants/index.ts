@@ -2,6 +2,8 @@ import { Token } from "../types";
 export const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID || ''
 export const SUI_FAUCET_URL = 'https://faucet.sui.io/'
 
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3004"
+
 export const SUI_CHAIN_ID = 8453;
 export const ETH_CHAIN_ID = 11155111
 export const tokens: Token[] = [
