@@ -112,6 +112,7 @@ export default function SwapComponent() {
   const [ethSignature, setEthSignature] = useState('')
   const [suiSignature, setSuiSignature] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [orderStatus, setOrderStatus] = useState<'pending' | 'success' | null>(null)
 
   const { mutate: signPersonalMessage } = useSignPersonalMessage()
   const { balance: ethTokenBalance } = useEthBalance(tokens[0].addressv2)
@@ -160,6 +161,27 @@ export default function SwapComponent() {
       setToAmount('')
     }
   }, [quote, toToken])
+
+  const checkOrderStatus = useCallback(async (orderHash: string) => {
+    try {
+      const response = await fetch(
+        `http://localhost:3004/relayer/checkOrderStatus?orderHash=${orderHash}`
+      )
+
+      if (response.status === 200) {
+        setOrderStatus('success')
+        toast.success('Order filled successfully!')
+        return true
+      } else if (response.status === 404) {
+        return false
+      } else {
+        throw new Error(`Unexpected status: ${response.status}`)
+      }
+    } catch (error) {
+      console.error('Error checking order status:', error)
+      return false
+    }
+  }, [])
 
   const handleSwapTokens = () => {
     const tempToken = fromToken
@@ -295,13 +317,33 @@ export default function SwapComponent() {
         throw new Error(`FillOrder API error: ${response.status}`)
       }
 
-      toast.success('Order signed and filled successfully.')
-      setOrder(null)
-      setFromAmount('')
-      setToAmount('')
+      const orderHash = orderInstance.getOrderHash(from.chainId) // Assuming orderInstance has orderHash
+      let attempts = 0
+      const maxAttempts = 30
+
+      const pollOrderStatus = setInterval(async () => {
+        attempts++
+        const isFilled = await checkOrderStatus(orderHash)
+
+        if (isFilled || attempts >= maxAttempts) {
+          clearInterval(pollOrderStatus)
+          if (!isFilled) {
+            setOrderStatus(null)
+            toast.error('Order status check timed out')
+          }
+          setIsSubmitting(false)
+          setOrder(null)
+          setFromAmount('')
+          setToAmount('')
+        }
+      }, 5000)
+
+      toast.success('Order submitted successfully. Checking status...')
     } catch (error) {
       console.error('Error in handleSubmitOrder:', error)
       toast.error('Failed to submit order. Please try again.')
+      setOrderStatus(null)
+      setIsSubmitting(false)
     } finally {
       setIsSubmitting(false)
     }
@@ -434,6 +476,17 @@ export default function SwapComponent() {
               </div>
             </div>
             {quoteError && <div className="text-red-400 text-sm text-center">{quoteError}</div>}
+            {orderStatus === 'pending' && (
+              <div className="text-center text-yellow-400 text-sm">
+                Checking order status...{' '}
+                <Loader2 className="inline-block ml-2 h-4 w-4 animate-spin" />
+              </div>
+            )}
+            {orderStatus === 'success' && (
+              <div className="text-center text-green-400 text-sm font-semibold">
+                Order filled successfully!
+              </div>
+            )}
             <Button
               className="w-full h-14 bg-white text-black hover:bg-white/80 hover:text-black/80 font-semibold text-lg rounded-xl transition-all duration-200"
               onClick={handleSwap}

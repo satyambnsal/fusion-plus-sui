@@ -29,6 +29,8 @@ content-type: application/json
   "secret": "my_secret_password_for_swap_test"
 }
 
+### Check order status
+GET http://localhost:3004/relayer/checkOrderStatus?orderHash=0x3522bbecc3748a9eee851834923c4bb815a52a6f3c07a5da095365dedd7d6b7c
 
 ### Get Health
 GET http://localhost:3004/health

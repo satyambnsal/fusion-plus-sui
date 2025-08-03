@@ -11,7 +11,6 @@ import { ethers } from 'ethers';
 import { uint8ArrayToHex } from '@1inch/byte-utils';
 import { sleep } from 'bun';
 
-
 const ws = new WebSocket('ws://localhost:3004');
 
 const ethereumResolverWallet = new Wallet(ethereumConfig.resolverPk, provider);
@@ -52,8 +51,6 @@ const processNewOrder = async (data: any) => {
     console.log(`Resolver 2 is filling order for order hash ${orderHash}`)
 
 
-
-
     const proxyEthAddress = orderInstance.receiver.toString();
     const receiverAddressSui = await db.data.addressMappings.find(m => m.ethProxyAddress.toLowerCase() === proxyEthAddress.toLowerCase())?.suiAddress;
     if (!receiverAddressSui) {
@@ -86,7 +83,6 @@ const processNewOrder = async (data: any) => {
     console.log("before funding destination escrow")
     console.log(await getBalance(SUI_CONFIG.SILVER_COIN_ADDRESS, SUI_CONFIG.RESOLVER_ADDRESS));
     console.log('✅ Found resolver coins:', resolverCoins[0].coinObjectId, receiverAddressSui);
-    console.log(suiClient, SUI_CONFIG.RESOLVER_KEYPAIR, SUI_CONFIG.SILVER_COIN_ADDRESS, Number(takingAmount), 300000 * 1e3, secretHashU8, resolverCoins[0].coinObjectId, receiverAddressSui)
     const response = await fundDstEscrow(suiClient, SUI_CONFIG.RESOLVER_KEYPAIR, SUI_CONFIG.SILVER_COIN_ADDRESS, Number(takingAmount), 300000 * 1e3, secretHashU8, resolverCoins[0].coinObjectId, receiverAddressSui)
     console.log("After funding destination escrow", response)
     console.log(await getBalance(SUI_CONFIG.SILVER_COIN_ADDRESS, SUI_CONFIG.RESOLVER_ADDRESS));
@@ -96,6 +92,15 @@ const processNewOrder = async (data: any) => {
     const hexSecret = uint8ArrayToHex(originalSecret)
 
     await sleep(2000)
+
+    const payload = {
+      orderHash,
+      srcEscrowDeployTxHash,
+      dstEscrowDeployTxHash: response.txnHash!
+    }
+    await db.data.filledOrders.push(payload);
+    await db.write();
+
 
     const claimFundResp = await claimFunds(suiClient, SUI_CONFIG.RESOLVER_KEYPAIR, SUI_CONFIG.SILVER_COIN_ADDRESS, response.orderObjectId, originalSecret)
     console.log(`Claim fund on destination chain transaction hash ${claimFundResp?.digest}`)
@@ -123,18 +128,10 @@ const processNewOrder = async (data: any) => {
     )
 
     console.log(`[Ethereum] Successfully withdrew funds for resolver in tx: ${resolverWithdrawHash}`)
-
     ws.send(JSON.stringify({
-      kind: SOCKET_EVENTS.ORDER_READY_FOR_FILL,
-      data: {
-        orderHash,
-        srcEscrowDeployTxHash,
-        dstEscrowDeployTxHash: response.txnHash
-      }
+      kind: SOCKET_EVENTS.ORDER_FILLED,
+      data: payload
     }))
 
   }
 }
-
-// const balance = await getEthereumBalances(config.chain.ethereum.tokens.USDC.address);
-// console.log("######### Balance after eth order filled ##########")

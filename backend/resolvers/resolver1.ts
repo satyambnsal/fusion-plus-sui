@@ -42,8 +42,7 @@ ws.on('message', async (data: any) => {
       const fillAmount = orderInstance.makingAmount
       const takingAmount = orderInstance.takingAmount
 
-      console.log(`Resolver 1 is filling order for order hash ${orderHash}`)
-      console.log({ srcChainId })
+      console.log(`Resolver 1 is filling order for order hash ${orderHash} for chain id ${srcChainId}`)
 
       const proxyEthAddress = orderInstance.maker.toString();
       const makerAddressSui = await db.data.addressMappings.find(m => m.ethProxyAddress.toLowerCase() === proxyEthAddress.toLowerCase())?.suiAddress;
@@ -54,11 +53,6 @@ ws.on('message', async (data: any) => {
       }
 
       const makerCoins = await findCoinsOfType(suiClient, SUI_CONFIG.SILVER_COIN_ADDRESS, makerAddressSui);
-
-      console.log({
-        makerAddressSui,
-        userAddress: SUI_CONFIG.USER_KEYPAIR.getPublicKey().toSuiAddress()
-      })
       if (makerCoins.length === 0) {
         console.log('❌ Maker has no coins of the required type');
         return;
@@ -81,9 +75,6 @@ ws.on('message', async (data: any) => {
       makerBalance = await getBalance(SUI_CONFIG.SILVER_COIN_ADDRESS, makerAddressSui)
       console.log(`Maker total balance after announce order ${makerBalance.totalBalance}`)
 
-      // user's balance on sui chain will decrease
-
-      // fund_src_escrow on ethereum chain 
       const taker = orderInstance.receiver
       const immutables = orderInstance.toSrcImmutables(srcChainId, taker, takingAmount, hashLock);
 
@@ -131,16 +122,16 @@ ws.on('message', async (data: any) => {
       await sleep(2000)
       resolverBalanceSui = await getBalance(SUI_CONFIG.SILVER_COIN_ADDRESS, SUI_CONFIG.RESOLVER_ADDRESS)
       console.log(`resolver total balance after claiming funds ${resolverBalanceSui.totalBalance}`)
-      // resolver will claim fund for user on ethereum chain
-      // resolver will claim fund on sui for himself
 
       const payload = {
         orderHash,
-        srcEscrowDeployTxHash,
+        srcEscrowDeployTxHash: srcEscrowDeployTxHash || "",
         dstEscrowDeployTxHash
       }
+      await db.data.filledOrders.push(payload);
+      await db.write();
+      console.log("Data written to DB successfully")
       ws.send(JSON.stringify({ kind: SOCKET_EVENTS.ORDER_FILLED, data: payload }))
-
     } else {
       console.log(`Skipping this order as order is not initiated from SUI chain`)
     }

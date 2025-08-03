@@ -9,7 +9,7 @@ import {
     randBigInt,
 } from '@1inch/cross-chain-sdk';
 import { uint8ArrayToHex } from '@1inch/byte-utils';
-import { provider, ethereumConfig, ETH_CHAIN_ID, CHAIN_MAPPINGS } from '../../config.js';
+import { provider, ethereumConfig, ETH_CHAIN_ID, CHAIN_MAPPINGS, SOCKET_EVENTS } from '../../config.js';
 import { db } from '../db/index.js'
 import { broadcastNewOrder } from '../../lib/utils.js';
 import { resolvers } from '../server.js'
@@ -148,18 +148,46 @@ router.post('/createOrder', async (req, res) => {
 
 router.post('/submitOrder', async (req, res) => {
     const { order, signature, srcChainId, extension, secretHash } = req.body
-    broadcastNewOrder(resolvers, { order, signature, srcChainId, extension, secretHash })
-    console.log("")
+    broadcastNewOrder(resolvers, SOCKET_EVENTS.NEW_ORDER, { order, signature, srcChainId, extension, secretHash })
     res.json({ success: true, message: "Order submitted successfully" })
 })
 
+router.get('/checkOrderStatus', async (req, res) => {
+    try {
+        const { orderHash } = req.query;
+        if (!orderHash || typeof orderHash !== 'string') {
+            return res.status(400).json({
+                error: 'Invalid or missing orderHash query parameter'
+            });
+        }
+
+        const filledOrder = db.data.filledOrders.find(
+            (order) => order.orderHash === orderHash
+        );
+
+        if (!filledOrder) {
+            return res.status(404).json({
+                error: 'Order not found or not filled'
+            });
+        }
+
+        return res.status(200).json({
+            status: 'filled',
+            filledOrder
+        });
+
+    } catch (error) {
+        console.error('Error checking order status:', error);
+        return res.status(500).json({
+            error: 'Internal server error'
+        });
+    }
+})
 
 
-export const handleOrderFill = async (data: any) => {
-
+export const handleOrderFilled = async (data: any) => {
     console.log("handler order fill", data)
-
-
+    broadcastNewOrder(resolvers, SOCKET_EVENTS.ORDER_FILLED, data)
 }
 
 export default router

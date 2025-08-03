@@ -19,9 +19,14 @@ type Data = {
     orderHash: string,
     secret: string
   }[]
+  filledOrders: {
+    orderHash: string,
+    srcEscrowDeployTxHash: string,
+    dstEscrowDeployTxHash: string
+  }[]
 }
 
-const defaultData: Data = { quotes: [], orders: [], addressMappings: [], orderSecrets: [] }
+const defaultData: Data = { quotes: [], orders: [], addressMappings: [], orderSecrets: [], filledOrders: [] }
 
 export const db = await JSONFilePreset<Data>('db_data.json', defaultData)
 
