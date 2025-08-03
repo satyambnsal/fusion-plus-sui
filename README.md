@@ -39,3 +39,19 @@ Swap Registry: 0xdf92792583d16d20b05d720c7f5da65adcdb8f7ef5b084a6295e1d799345b9d
 # Open Questions
 
 - [] Deploy Senku Coin
+
+
+
+
+# Prompts
+
+, once relayer creates source and destination escrow, relayer responds to relayer that both escrow filled. 
+now relayer will reveal the secret for resepective order
+and the resolver will first claim funds for user on destination chain and then will claim funds for himself on the source chain
+
+For sui to eth flow, eth resolver should be able to withdraw funds.
+
+
+
+- [] Get signature on Sui for fund transfer
+

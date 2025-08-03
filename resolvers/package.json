@@ -1,0 +1,22 @@
+{
+  "name": "resolvers",
+  "module": "index.ts",
+  "type": "module",
+  "author": {
+    "name": "Satyam Bansal"
+  },
+  "scripts": {
+    "resolver1": "bun run resolver1.ts",
+    "resolver2": "bun run resolver2.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@types/ws": "^8.18.1",
+    "ws": "^8.18.3"
+  }
+}

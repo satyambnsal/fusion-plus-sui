@@ -3,7 +3,6 @@ import cors from 'cors';
 import morgan from 'morgan';
 import swaggerUi from 'swagger-ui-express';
 import relayerRoutes from './routes/relayer';
-import resolverRoutes from './routes/resolver';
 import quoterRoutes from './routes/quote'
 import { db } from './db'
 import http from 'http'
@@ -14,6 +13,25 @@ const port = process.env.PORT || 3004;
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
+export const resolvers = new Set();
+
+wss.on('connection', (ws) => {
+  console.log('Resolver connected');
+  resolvers.add(ws);
+
+  ws.on('close', () => {
+    console.log('Resolver disconnected');
+    resolvers.delete(ws);
+  });
+
+  ws.on('error', (error) => {
+    console.error('WebSocket error:', error);
+    resolvers.delete(ws);
+  });
+});
+
+
+
 
 app.use(cors());
 app.use(express.json());
@@ -23,7 +41,6 @@ const swaggerFile = require('./swagger-output.json');
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerFile));
 
 app.use('/relayer', relayerRoutes);
-app.use('/resolver', resolverRoutes);
 app.use('/quoter', quoterRoutes)
 
 app.get('/health', (req, res) => {
@@ -31,7 +48,7 @@ app.get('/health', (req, res) => {
 });
 
 
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: Error, _: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Something broke!' });
 });

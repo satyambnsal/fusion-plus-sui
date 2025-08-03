@@ -21,7 +21,7 @@ import { db } from '../db/index.js'
 import { fundSrcEscrow, claimFunds, findCoinsOfType, fundDstEscrow, getBalance } from '../lib/sui-handlers.js';
 import { sleep } from 'bun';
 import { EscrowFactory } from '../lib/EscrowFactory.js';
-import { getEthereumTokenBalance } from '../utils.js';
+import { broadcastNewOrder, getEthereumTokenBalance } from '../utils.js';
 
 
 const router = express.Router();
@@ -147,7 +147,7 @@ router.post('/createOrder', async (req, res) => {
             secret
         });
         await db.write();
-
+        broadcastNewOrder(limitOrderV4);
         res.json({ success: true, limitOrderV4, typedData, extension, secretHash })
     } catch (e: any) {
         return res.status(400).json({ error: 'Failed to create order', details: e.message });
