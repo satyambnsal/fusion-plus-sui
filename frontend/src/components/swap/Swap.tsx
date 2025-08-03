@@ -642,7 +642,7 @@ export default function SwapComponent() {
                 </div>
               )}
               {activeTab === 'allOrders' && (
-                <div className="max-h-[400px] overflow-y-auto">
+                <div className="overflow-y-auto">
                   <OrderHistoryByMaker />
                 </div>
               )}
