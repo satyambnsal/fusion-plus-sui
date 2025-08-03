@@ -16,9 +16,10 @@ async function executeTransaction(
   tx: Transaction,
   keypairToUse: GenericKeyPairType,
   description?: string
-): Promise<SuiTransactionBlockResponse> {
+): Promise<SuiTransactionBlockResponse | undefined> {
+  let result;
   try {
-    const result = await client.signAndExecuteTransaction({
+    result = await client.signAndExecuteTransaction({
       signer: keypairToUse,
       transaction: tx,
       options: {
@@ -50,7 +51,6 @@ async function executeTransaction(
         // });
       }
 
-      return result;
     } else {
       console.log('❌ Transaction failed:', result.effects?.status);
       return result;
@@ -58,13 +58,14 @@ async function executeTransaction(
   } catch (error: any) {
     console.error('❌ Error executing transaction:', error.message);
   }
+  return result;
 }
 
-async function getBalance(address: string) {
+async function getBalance(coinType: string, address: string) {
   try {
     const balance = await client.getBalance({
       owner: address,
-      coinType: SUI_CONFIG.SILVER_COIN_ADDRESS,
+      coinType,
     });
 
     return {
@@ -74,20 +75,21 @@ async function getBalance(address: string) {
   } catch (error: any) {
     console.error('Error getting balance:', error.message);
     return {
-      coinType: SUI_CONFIG.SILVER_COIN_ADDRESS,
+      coinType: coinType,
       totalBalance: '0',
     };
   }
 }
 
 
-async function announceOrder<T>(
+async function fundSrcEscrow<T>(
   coinType: string,
   amount: number,
   minDstAmount: number,
   expirationDurationMs: number,
   secretHash: Uint8Array,
   coinObjectId: string,
+  signature: string,
   keypair: GenericKeyPairType
 ) {
   const tx = new Transaction();
@@ -195,7 +197,8 @@ async function claimFunds<T>(
   return await executeTransaction(client, tx, keypair, 'Claiming funds');
 }
 
-// Cancel swap - returns funds to maker
+
+
 async function cancelSwap<T>(
   coinType: string,
   orderObjectId: string,
@@ -313,7 +316,7 @@ async function findCoinsOfType(client: SuiClient, coinType: string, address: str
 
 //   // Step 3: Announce order
 //   console.log('\n🎯 Step 3: Announce Order');
-//   const announceSuccess = await announceOrder(
+//   const announceSuccess = await fundSrcEscrow(
 //     COIN_TYPE,
 //     AMOUNT,
 //     MIN_AMOUNT,
@@ -405,7 +408,7 @@ async function findCoinsOfType(client: SuiClient, coinType: string, address: str
 
 // Export functions for use in other modules
 export {
-  announceOrder,
+  fundSrcEscrow,
   fundDstEscrow,
   claimFunds,
   cancelSwap,

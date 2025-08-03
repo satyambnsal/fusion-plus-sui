@@ -1,4 +1,7 @@
 import type { CrossChainOrder } from "@1inch/cross-chain-sdk";
+import { Contract } from "ethers";
+import { provider } from "./config";
+import ERC20 from '../1inch-contracts/IERC20.sol/IERC20.json'
 
 export function serializeOrder(order: CrossChainOrder) {
   const serialized: any = {};
@@ -26,3 +29,9 @@ export const hexToU8Array = (hexStr: string): Uint8Array => {
 
   return new Uint8Array(hexBytes.map(byte => parseInt(byte, 16)));
 };
+
+
+export const getEthereumTokenBalance = async (tokenAddress: string, userAddress: string): Promise<bigint> => {
+  const tokenContract = new Contract(tokenAddress, ERC20.abi, provider)
+  return tokenContract.balanceOf(userAddress)
+}

@@ -39,9 +39,3 @@ export const truncateAddress = (address: string, startLength: number = 6, endLen
   }
   return `${address.slice(0, startLength)}...${address.slice(-endLength)}`;
 };
-
-
-export const requestSuiSignature = async (typedData: EIP712TypedData, userAddress: string) => {
-  //TODO Implement sui signature scheme here
-  return "abc123"
-}

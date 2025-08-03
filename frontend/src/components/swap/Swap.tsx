@@ -13,15 +13,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useAccount } from 'wagmi'
-import { requestEthereumSignature, requestSuiSignature, truncateAddress } from '@/lib/utils'
+import { requestEthereumSignature, truncateAddress } from '@/lib/utils'
 import { Loader2 } from 'lucide-react'
 import { useDebounce } from 'use-debounce'
 import { Toaster, toast } from 'sonner'
 import { OrderResponse, QuoteResponse, Token } from '@/types'
 import { ETH_CHAIN_ID, SUI_CHAIN_ID, tokens } from '@/constants'
-import { useCurrentAccount } from '@mysten/dapp-kit'
+import { useCurrentAccount, useSignPersonalMessage } from '@mysten/dapp-kit'
 import { useSuiBalance } from '@/hooks/useSuiBalance'
 import { useEthBalance } from '@/hooks/useEthBalance'
+import { CrossChainOrder, Extension } from '@1inch/cross-chain-sdk'
 
 const getTokenData = (address: string): Token =>
   tokens.find((token) => token.address === address) || tokens[0]
@@ -102,12 +103,17 @@ export default function SwapComponent() {
   const [toAmount, setToAmount] = useState('')
   const [isSwapping, setIsSwapping] = useState(false)
   const [order, setOrder] = useState<OrderResponse | null>(null)
+  const [orderInstance, setOrderInstance] = useState<CrossChainOrder | null>(null)
   const { address, isConnected } = useAccount()
   const suiAccount = useCurrentAccount()
   const { balance: suiTokenBalance } = useSuiBalance(tokens[1].addressv2)
   const [fromTokenBalance, setFromTokenBalance] = useState('00')
   const [toTokenBalance, setToTokenBalance] = useState('')
+  const [ethSignature, setEthSignature] = useState('')
+  const [suiSignature, setSuiSignature] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
+  const { mutate: signPersonalMessage } = useSignPersonalMessage()
   const { balance: ethTokenBalance } = useEthBalance(tokens[0].addressv2)
 
   useEffect(() => {
@@ -212,6 +218,12 @@ export default function SwapComponent() {
 
       const orderData = await orderResponse.json()
       setOrder(orderData)
+      setOrderInstance(
+        CrossChainOrder.fromDataAndExtension(
+          orderData.limitOrderV4,
+          Extension.decode(orderData.extension)
+        )
+      )
       toast.success('Order created successfully. Please sign the order.')
     } catch (error) {
       console.error('Error in handleSwap:', error)
@@ -222,15 +234,52 @@ export default function SwapComponent() {
   }
 
   const handleSignOrder = async () => {
-    if (!order || !address || !suiAccount?.address) return
-    setIsSwapping(true)
+    if (!order || !address || !suiAccount?.address || !orderInstance) return
     try {
       const from = getTokenData(fromToken)
-      const signature =
-        from.chainId === SUI_CHAIN_ID
-          ? await requestSuiSignature(order.typedData, address)
-          : await requestEthereumSignature(order.typedData, address)
-      const response = await fetch('http://localhost:3004/relayer/fillOrder', {
+      let signature = null
+
+      if (from.chainId === SUI_CHAIN_ID) {
+        // const permitMessage = createPermitMessage()
+        const messagePayload = {
+          owner: suiAccount?.address,
+          amount: Number(orderInstance.makingAmount),
+          nonce: Number(orderInstance.nonce),
+          deadline: Number(orderInstance.nonce),
+        }
+        await signPersonalMessage(
+          {
+            message: new TextEncoder().encode(JSON.stringify(messagePayload)),
+          },
+          {
+            onSuccess: (result) => setSuiSignature(result.signature),
+          }
+        )
+      }
+      if (from.chainId === ETH_CHAIN_ID) {
+        signature = await requestEthereumSignature(order.typedData, address)
+        setEthSignature(signature)
+      }
+    } catch (error) {
+      console.error('Error in handleSignOrder:', error)
+      toast.error('Failed to sign order. Please try again.')
+    }
+  }
+
+  const handleSubmitOrder = async () => {
+    const from = getTokenData(fromToken)
+    const signature = from.chainId === SUI_CHAIN_ID ? suiSignature : ethSignature
+    if (!signature) {
+      toast('Please sign your order first')
+      return
+    }
+    if (!order || !address || !suiAccount?.address || !orderInstance) {
+      toast('Connect wallets and create order first')
+      return
+    }
+    try {
+      setIsSubmitting(true)
+      const response = await fetch('http://localhost:3004/relayer/submitOrder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -239,7 +288,6 @@ export default function SwapComponent() {
           srcChainId: from.chainId,
           order: order.limitOrderV4,
           secretHash: order.secretHash,
-          hashLock: order.hashLock
         }),
       })
 
@@ -252,10 +300,10 @@ export default function SwapComponent() {
       setFromAmount('')
       setToAmount('')
     } catch (error) {
-      console.error('Error in handleSignOrder:', error)
-      toast.error('Failed to sign order. Please try again.')
+      console.error('Error in handleSubmitOrder:', error)
+      toast.error('Failed to submit order. Please try again.')
     } finally {
-      setIsSwapping(false)
+      setIsSubmitting(false)
     }
   }
 
@@ -407,7 +455,15 @@ export default function SwapComponent() {
                 onClick={handleSignOrder}
                 disabled={isSignOrderDisabled}
               >
-                {isSwapping ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Sign Order'}
+                Sign Order
+              </Button>
+            )}
+            {order && (suiSignature || ethSignature) && (
+              <Button
+                className="w-full h-14 bg-white text-black hover:bg-white/80 hover:text-black/80 font-semibold text-lg rounded-xl transition-all duration-200"
+                onClick={handleSubmitOrder}
+              >
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Submit Order'}
               </Button>
             )}
           </CardContent>

@@ -6,9 +6,13 @@ import relayerRoutes from './routes/relayer';
 import resolverRoutes from './routes/resolver';
 import quoterRoutes from './routes/quote'
 import { db } from './db'
+import http from 'http'
+import { WebSocketServer } from 'ws';
 const app = express();
 const port = process.env.PORT || 3004;
 
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
 
 
 app.use(cors());
@@ -32,7 +36,8 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   res.status(500).json({ error: 'Something broke!' });
 });
 
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`Server is running on port ${port}`);
+  console.log(`WebSocket server running on ws://localhost:${port}`);
   console.log(`API Documentation available at http://localhost:${port}/api-docs`);
 }); 

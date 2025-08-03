@@ -15,7 +15,7 @@ export const tokens: Token[] = [
     addressv2: '0x51B6c8FAb037fBf365CF43A02c953F2305e70bb4',
     chainId: 11155111,
     chainName: 'Ethereum',
-    decimals: 10,
+    decimals: 9,
   },
   {
     symbol: 'SILVER',

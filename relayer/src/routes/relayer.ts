@@ -17,12 +17,11 @@ import { uint8ArrayToHex } from '@1inch/byte-utils';
 import { provider, ethereumConfig, SUI_CONFIG, suiClient, ETH_CHAIN_ID, SUI_CHAIN_ID, config, CHAIN_MAPPINGS } from '../config.js';
 import { Resolver as EthereumResolverContract } from '../lib/resolver.js';
 import { Wallet } from '../lib/wallet.js';
-import { db } from '../db'
-import { getKeypair } from '../lib/privKey.js';
-import { announceOrder, claimFunds, findCoinsOfType, fundDstEscrow, getBalance } from '../lib/sui-handlers.js';
+import { db } from '../db/index.js'
+import { fundSrcEscrow, claimFunds, findCoinsOfType, fundDstEscrow, getBalance } from '../lib/sui-handlers.js';
 import { sleep } from 'bun';
 import { EscrowFactory } from '../lib/EscrowFactory.js';
-import type { SupportedChain } from '@1inch/cross-chain-sdk';
+import { getEthereumTokenBalance } from '../utils.js';
 
 
 const router = express.Router();
@@ -91,7 +90,7 @@ router.post('/createOrder', async (req, res) => {
                 makingAmount: BigInt(makingAmount),
                 takingAmount: BigInt(takingAmount),
                 makerAsset: new Address(makerAsset),
-                takerAsset: new Address(takerAsset)
+                takerAsset: new Address(takerAsset),
             },
             {
                 hashLock,
@@ -139,7 +138,7 @@ router.post('/createOrder', async (req, res) => {
             limitOrderV4, orderHash, extension
         });
         await db.write();
-        res.json({ success: true, limitOrderV4, typedData, extension, secretHash, hashLock: hashLock.toString() })
+        res.json({ success: true, limitOrderV4, typedData, extension, secretHash })
     } catch (e: any) {
         return res.status(400).json({ error: 'Failed to create order', details: e.message });
     }
@@ -147,16 +146,19 @@ router.post('/createOrder', async (req, res) => {
 
 
 
-router.post('/fillOrder', async (req, res) => {
-    const { order, signature, srcChainId, extension, secretHash, coinObjectId = "", hashLock } = req.body
+router.post('/submitOrder', async (req, res) => {
+    const { order, signature, srcChainId, extension, secretHash } = req.body
     const orderInstance = CrossChainOrder.fromDataAndExtension(order, Extension.decode(extension))
     const orderHash = orderInstance.getOrderHash(srcChainId)
+    const hashLock = HashLock.fromString(secretHash)
+    const fillAmount = orderInstance.makingAmount
+    const takingAmount = orderInstance.takingAmount
+
+
     const ethereumResolverWallet = new Wallet(ethereumConfig.resolverPk, provider);
     const resolverContract = new EthereumResolverContract(ethereumConfig.resolverContractAddress, SUI_CONFIG.RESOLVER_PROXY_ADDRESS)
     const ethereumFactory = new EscrowFactory(provider, ethereumConfig.escrowFactoryContractAddress);
 
-    const fillAmount = orderInstance.makingAmount
-    const takingAmount = orderInstance.takingAmount
 
     console.log({ srcChainId, ETH_CHAIN_ID })
 
@@ -192,22 +194,22 @@ router.post('/fillOrder', async (req, res) => {
         const secretHashU8 = new Uint8Array(ethers.getBytes(secretHash))
 
         console.log("before funding destination escrow")
-        console.log(await getBalance(SUI_CONFIG.RESOLVER_ADDRESS));
+        console.log(await getBalance(SUI_CONFIG.SILVER_COIN_ADDRESS, SUI_CONFIG.RESOLVER_ADDRESS));
         console.log('✅ Found resolver coins:', resolverCoins[0].coinObjectId);
         const response = await fundDstEscrow(suiClient, SUI_CONFIG.RESOLVER_KEYPAIR, SUI_CONFIG.SILVER_COIN_ADDRESS, Number(takingAmount), 300000 * 1e3, secretHashU8, resolverCoins[0].coinObjectId, receiverAddressSui)
         console.log("After funding destination escrow", response)
-        console.log(await getBalance(SUI_CONFIG.RESOLVER_ADDRESS));
+        console.log(await getBalance(SUI_CONFIG.SILVER_COIN_ADDRESS, SUI_CONFIG.RESOLVER_ADDRESS));
         const originalSecret = ethers.toUtf8Bytes("my_secret_password_for_swap_test")
         const hexSecret = uint8ArrayToHex(originalSecret)
 
         await sleep(2000)
 
         const claimFundResp = await claimFunds(suiClient, SUI_CONFIG.RESOLVER_KEYPAIR, SUI_CONFIG.SILVER_COIN_ADDRESS, response.orderObjectId, originalSecret)
-        console.log("CLAIM FUND BALANCE", claimFundResp.digest)
+        console.log(`Claim fund on destination chain transaction hash ${claimFundResp?.digest}`)
         await sleep(2000)
 
         console.log("Fund after claiming balance")
-        console.log(await getBalance(SUI_CONFIG.RESOLVER_ADDRESS));
+        console.log(await getBalance(SUI_CONFIG.SILVER_COIN_ADDRESS, SUI_CONFIG.RESOLVER_ADDRESS));
 
 
 
@@ -251,43 +253,46 @@ router.post('/fillOrder', async (req, res) => {
             makerAddressSui,
             userAddress: SUI_CONFIG.USER_KEYPAIR.getPublicKey().toSuiAddress()
         })
-        console.log({ RESOLVER: SUI_CONFIG.RESOLVER_ADDRESS })
         if (makerCoins.length === 0) {
             console.log('❌ Maker has no coins of the required type');
             return;
         }
         console.log('✅ Found maker coins:', makerCoins[0].coinObjectId);
-        // Step 3: Announce order
-        console.log('\n🎯 Step 3: Announce Order');
+
         const secretHashU8 = new Uint8Array(ethers.getBytes(secretHash))
-        const announceOrderArgs = [
-            SUI_CONFIG.SILVER_COIN_ADDRESS,
-            Number(1000000000),
-            10,
-            1 * 1e6,
-            secretHashU8,
-            makerCoins[0].coinObjectId,
-            SUI_CONFIG.USER_KEYPAIR
-        ]
+        // const announceOrderArgs = [
+        //     SUI_CONFIG.SILVER_COIN_ADDRESS,
+        //     Number(1000000000),
+        //     10,
+        //     1 * 1e6,
+        //     secretHashU8,
+        //     makerCoins[0].coinObjectId,
+        //     SUI_CONFIG.USER_KEYPAIR
+        // ]
         // console.log("announce order args", announceOrderArgs)
-        const announceSuccess = await announceOrder(SUI_CONFIG.SILVER_COIN_ADDRESS,
+        let makerBalance = await getBalance(SUI_CONFIG.SILVER_COIN_ADDRESS, makerAddressSui)
+        console.log(`Maker total balance before announce order ${makerBalance.totalBalance}`)
+        const announceSuccess = await fundSrcEscrow(SUI_CONFIG.SILVER_COIN_ADDRESS,
             Number(1000000000),
             1000000,
             1 * 1e6,
             secretHashU8,
             makerCoins[0].coinObjectId,
+            signature,
             SUI_CONFIG.USER_KEYPAIR
             // signature        
         ); // ideally this should have been called by resolver
         console.log({ announceSuccess })
+        await sleep(2000)
+        makerBalance = await getBalance(SUI_CONFIG.SILVER_COIN_ADDRESS, makerAddressSui)
+        console.log(`Maker total balance after announce order ${makerBalance.totalBalance}`)
 
         // user's balance on sui chain will decrease
 
         // fund_src_escrow on ethereum chain 
         const taker = orderInstance.receiver
         const takingAmount = orderInstance.takingAmount
-        const hashLockDecoded = HashLock.fromString(hashLock)
-        const immutables = orderInstance.toSrcImmutables(srcChainId, taker, takingAmount, hashLockDecoded);
+        const immutables = orderInstance.toSrcImmutables(srcChainId, taker, takingAmount, hashLock);
 
         console.log("Deployed at", immutables.timeLocks.deployedAt)
         const { txHash: orderFillHash, blockHash: ethereumDeployBlock } = await ethereumResolverWallet.send(
@@ -295,6 +300,7 @@ router.post('/fillOrder', async (req, res) => {
                 immutables
             )
         )
+
 
 
         const ESCROW_DST_IMPLEMENTATION = await ethereumFactory.getDestinationImpl()
@@ -315,9 +321,20 @@ router.post('/fillOrder', async (req, res) => {
         const originalSecret = ethers.toUtf8Bytes("my_secret_password_for_swap_test")
         const hexSecret = uint8ArrayToHex(originalSecret)
 
+        // here we fetch makers eth address and check balance
+
+        let takerBalance = await getEthereumTokenBalance(ethereumConfig.tokens.USDC.address, taker.toString())
+        console.log(`Taker ${taker.toString()} balance before withdraw ${takerBalance}`)
+
         const { txHash: resolverWithdrawHash } = await ethereumResolverWallet.send(
             resolverContract.withdraw('dst', dstEscrowAddress, hexSecret, immutables)
         )
+
+        await sleep(3000)
+        takerBalance = await getEthereumTokenBalance(ethereumConfig.tokens.USDC.address, taker.toString())
+        console.log(`Taker ${taker.toString()} balance after withdraw ${takerBalance}`)
+
+
 
         console.log("resolver withdraw")
 
@@ -329,8 +346,6 @@ router.post('/fillOrder', async (req, res) => {
         console.log("Announce success: ", announceSuccess)
     }
     res.json({ succeess: false, message: "Wrong chain id" })
-
-
 })
 
 
