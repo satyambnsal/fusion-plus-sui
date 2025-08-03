@@ -44,13 +44,11 @@ export default function OrderHistoryByMaker() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchOrders = useCallback(async (makerAddress: string) => {
+  const fetchOrders = useCallback(async () => {
     setIsLoading(true)
     setError(null)
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/relayer/getOrderStatusesByMaker?maker=${makerAddress}`
-      )
+      const response = await fetch(`${API_BASE_URL}/relayer/getOrderStatuses`)
       if (!response.ok) {
         throw new Error(`Failed to fetch orders: ${response.status}`)
       }
@@ -69,21 +67,11 @@ export default function OrderHistoryByMaker() {
   }, [])
 
   useEffect(() => {
-    if (isConnected && ethAddress) {
-      fetchOrders(ethAddress)
-    } else if (suiAccount?.address) {
-      fetchOrders(suiAccount.address)
-    }
+    fetchOrders()
   }, [ethAddress, suiAccount, fetchOrders, isConnected])
 
   const handleRefresh = () => {
-    if (isConnected && ethAddress) {
-      fetchOrders(ethAddress)
-    } else if (suiAccount?.address) {
-      fetchOrders(suiAccount.address)
-    } else {
-      toast.error('Please connect a wallet to view order history.')
-    }
+    fetchOrders()
   }
 
   return (
