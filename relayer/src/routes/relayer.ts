@@ -137,7 +137,17 @@ router.post('/createOrder', async (req, res) => {
         await db.data.orders.push({
             limitOrderV4, orderHash, extension
         });
+        /** 
+         * This is a relayer based trusted setup such that relayer is responsible for listening to order filled events from resolver and then relayer will reveal the secret. 
+         * this setup can be moved to frontend as well where wallets can implement functionality to reveal the secret once resolver confirms that both source and destination escrow been deployed
+         * 
+        */
+        await db.data.orderSecrets.push({
+            orderHash,
+            secret
+        });
         await db.write();
+
         res.json({ success: true, limitOrderV4, typedData, extension, secretHash })
     } catch (e: any) {
         return res.status(400).json({ error: 'Failed to create order', details: e.message });
@@ -153,7 +163,6 @@ router.post('/submitOrder', async (req, res) => {
     const hashLock = HashLock.fromString(secretHash)
     const fillAmount = orderInstance.makingAmount
     const takingAmount = orderInstance.takingAmount
-
 
     const ethereumResolverWallet = new Wallet(ethereumConfig.resolverPk, provider);
     const resolverContract = new EthereumResolverContract(ethereumConfig.resolverContractAddress, SUI_CONFIG.RESOLVER_PROXY_ADDRESS)
@@ -260,19 +269,9 @@ router.post('/submitOrder', async (req, res) => {
         console.log('✅ Found maker coins:', makerCoins[0].coinObjectId);
 
         const secretHashU8 = new Uint8Array(ethers.getBytes(secretHash))
-        // const announceOrderArgs = [
-        //     SUI_CONFIG.SILVER_COIN_ADDRESS,
-        //     Number(1000000000),
-        //     10,
-        //     1 * 1e6,
-        //     secretHashU8,
-        //     makerCoins[0].coinObjectId,
-        //     SUI_CONFIG.USER_KEYPAIR
-        // ]
-        // console.log("announce order args", announceOrderArgs)
         let makerBalance = await getBalance(SUI_CONFIG.SILVER_COIN_ADDRESS, makerAddressSui)
         console.log(`Maker total balance before announce order ${makerBalance.totalBalance}`)
-        const announceSuccess = await fundSrcEscrow(SUI_CONFIG.SILVER_COIN_ADDRESS,
+        const { orderObjectId: srcEscrowOrderObjectId } = await fundSrcEscrow(SUI_CONFIG.SILVER_COIN_ADDRESS,
             Number(1000000000),
             1000000,
             1 * 1e6,
@@ -280,9 +279,7 @@ router.post('/submitOrder', async (req, res) => {
             makerCoins[0].coinObjectId,
             signature,
             SUI_CONFIG.USER_KEYPAIR
-            // signature        
         ); // ideally this should have been called by resolver
-        console.log({ announceSuccess })
         await sleep(2000)
         makerBalance = await getBalance(SUI_CONFIG.SILVER_COIN_ADDRESS, makerAddressSui)
         console.log(`Maker total balance after announce order ${makerBalance.totalBalance}`)
@@ -337,13 +334,16 @@ router.post('/submitOrder', async (req, res) => {
 
 
         console.log("resolver withdraw")
-
+        let resolverBalanceSui = await getBalance(SUI_CONFIG.SILVER_COIN_ADDRESS, SUI_CONFIG.RESOLVER_ADDRESS)
+        console.log(`resolver total balance before claiming funss ${resolverBalanceSui.totalBalance}`)
+        const claimFundResp = await claimFunds(suiClient, SUI_CONFIG.RESOLVER_KEYPAIR, SUI_CONFIG.SILVER_COIN_ADDRESS, srcEscrowOrderObjectId, originalSecret)
         // console.log({ orderFillHash, ethereumDeployBlock })
-
+        await sleep(2000)
+        resolverBalanceSui = await getBalance(SUI_CONFIG.SILVER_COIN_ADDRESS, SUI_CONFIG.RESOLVER_ADDRESS)
+        console.log(`resolver total balance after claiming funss ${resolverBalanceSui.totalBalance}`)
         // resolver will claim fund for user on ethereum chain
         // resolver will claim fund on sui for himself
-
-        console.log("Announce success: ", announceSuccess)
+        res.json({ success: true })
     }
     res.json({ succeess: false, message: "Wrong chain id" })
 })
