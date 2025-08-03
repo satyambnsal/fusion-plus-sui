@@ -15,7 +15,7 @@ export const ethereumConfig = {
   createFork: false,
   limitOrderProtocol: '0x111111125421ca6dc452d289314280a0f8842a65',
   wrappedNative: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
-  ownerPrivateKey: '7764b03c4d3eb019cc0ec0630429622593b8d7625b83a109e9f2279828a88a66',
+  ownerPrivateKey: process.env.OWNER_PRIVATE_KEY_ETH || '',
   blockNumber: 8844845,
   tokens: {
     USDC: {
@@ -23,7 +23,7 @@ export const ethereumConfig = {
       donor: '0x4B16c5dE96EB2117bBE5fd171E4d203624B014aa'
     }
   },
-  resolverPk: 'ec24db4bfe6c9cbba5b3a04e342228323a87c6afca24006d40b5288c178536e3',
+  resolverPk: process.env.RESOLVER_PRIVATE_KEY_ETH || 'ec24db4bfe6c9cbba5b3a04e342228323a87c6afca24006d40b5288c178536e3',
   "resolverContractAddress": '0x707710DBA922769f0A9b502Ea634D146790ca4a6',
   "escrowFactoryContractAddress": "0xd3e99B1622A45153f087173e904296e7B6e357DF"
 };
