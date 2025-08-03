@@ -11,6 +11,7 @@ Fusion Plus Sui extends the 1inch Fusion Plus protocol to support cross-chain to
 - **Frontend**: A Next.js-based UI for interacting with the protocol, deployed at [https://fusion-plus-sui.vercel.app/](https://fusion-plus-sui.vercel.app/).
 
 ## Folder Structure
+```
 fusion-plus-sui/
 ├── frontend/                    # Next.js frontend code
 ├── backend/                     # Relayer api endpoints
@@ -23,21 +24,35 @@ fusion-plus-sui/
 │   ├── swap-contract/           # Swap contract for cross-chain operations
 │   └── tests/                   # Test cases for Sui contracts
 
+```
 
-## Sui Contracts
-The project includes two Sui smart contracts deployed on the Sui testnet:
+##  Deployed Contracts
+
+| Name | Address/Package ID | Chain | Explorer Link |
+|------|---------|-------|---------------|
+| SILVER COIN| 0xe33c8ada01d0c54b83546a768bf35b9af658502b59fa03c20793f832a91098d5 | Sui Testnet | [View on Explorer](https://testnet.suivision.xyz/package/0xe33c8ada01d0c54b83546a768bf35b9af658502b59fa03c20793f832a91098d5) |
+| Swap Contract | 0x542196e996a3504bcfdc8b837d5af40c989c15dc2514357689bc76e619ef9a39 | Sui Testnet | [View on Explorer](https://testnet.suivision.xyz/package/0x542196e996a3504bcfdc8b837d5af40c989c15dc2514357689bc76e619ef9a39?tab=Code) |
+| Swap Registry Object ID| 0xb0ae81570a901034d3c407dfa3ecb71b6d57b6703534fe0585e8376d044a497e | Sui Testnet | [View on Explorer](https://testnet.suivision.xyz/object/0xb0ae81570a901034d3c407dfa3ecb71b6d57b6703534fe0585e8376d044a497e) |
+| ERC20 Token| 0x51B6c8FAb037fBf365CF43A02c953F2305e70bb4 | Sepolia | [View on Explorer](https://sepolia.etherscan.io/address/0x51B6c8FAb037fBf365CF43A02c953F2305e70bb4) |
+| Ethereum Resolver Contract| 0x707710DBA922769f0A9b502Ea634D146790ca4a6 | Sepolia | [View on Explorer](https://sepolia.etherscan.io/address/0x707710DBA922769f0A9b502Ea634D146790ca4a6) |
+| Escrow Factory Contract | 0xd3e99B1622A45153f087173e904296e7B6e357DF | Sepolia | [View on Explorer](https://sepolia.etherscan.io/address/0xd3e99B1622A45153f087173e904296e7B6e357DF) |
+
+
+
+
+
 
 ### 1. Token Contract (`sui-contracts/silver`)
-- **Purpose**: Manages the SILVER token.
+- **Purpose**: SILVER token(similar to ERC20 token).
 - **Package ID**: `0xe33c8ada01d0c54b83546a768bf35b9af658502b59fa03c20793f832a91098d5`
 - **Token Symbol**: SILVER
 - **Minting Tokens**: Users can mint SILVER tokens to their wallet using the Sui CLI:
-  ```bash
+```bash
   sui client call --function mint --module silver --package 0xe33c8ada01d0c54b83546a768bf35b9af658502b59fa03c20793f832a91098d5 --args 0x4dfb330cf192396e03f988df495eb567de8f5176c080a9b8472813436ca2829c 100000000000000 <wallet_address>
-
+```
 
 ### 2. Swap Contract (sui-contracts/swap-contract)
-**Purpose**: Handles cross-chain swap operations, including fund_dst_escrow, announce_order (fund_src_escrow), and claim_funds.
+**Purpose**: Handles cross-chain swap operations, including **fund_dst_escrow**, **announce_order** (fund_src_escrow), and **claim_funds**.
 **Package ID**: 0x542196e996a3504bcfdc8b837d5af40c989c15dc2514357689bc76e619ef9a39
 **Registry Object ID**: 0xb0ae81570a901034d3c407dfa3ecb71b6d57b6703534fe0585e8376d044a497e
 **Environment Variables**: See backend/.env.example for additional addresses and configuration.
@@ -125,19 +140,3 @@ Mint silverv3
 sui client call --function mint --module permit_token --package 0x3764580c8b26786003f01c0c8f30d826872324d1bce129d7f40e183cbc20d4df --args 0x65b56596ea02f0117d73bbcebf7f71919fb9e884ea8ac6d169456bf6f6a37703 200000000000000 0x10e4f1e870282b3cb1927e2e7e3cf23c60c345c4df4dcd32336ef0f67d0910df
 ```
 ```
-
-
-# Deployed Contracts
-
-# Sui Configuration
-SWAP_CONTRACT_SUI_PACKAGE_ID=0x542196e996a3504bcfdc8b837d5af40c989c15dc2514357689bc76e619ef9a39
-SWAP_CONTRACT_SUI_REGISTRY_OBJECT_ID=0xb0ae81570a901034d3c407dfa3ecb71b6d57b6703534fe0585e8376d044a497e
-SILVER_COIN_ADDRESS="0xe33c8ada01d0c54b83546a768bf35b9af658502b59fa03c20793f832a91098d5::silver::SILVER"
-
-
-# Open Questions
-
-- [] Deploy Senku Coin
-
-
-
