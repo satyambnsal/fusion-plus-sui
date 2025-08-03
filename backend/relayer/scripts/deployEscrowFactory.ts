@@ -3,7 +3,7 @@ import factoryContract from '../../1inch-contracts/TestEscrowFactory.sol/TestEsc
 import resolverContract from '../../1inch-contracts/Resolver.sol/Resolver.json'
 import { Address } from "@1inch/cross-chain-sdk"
 import fs from 'fs'
-import { ethereumConfig as config } from '../config'
+import { ethereumConfig as config } from '../../config'
 
 
 

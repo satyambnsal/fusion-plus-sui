@@ -21,37 +21,15 @@ sui client call --function mint --module permit_token --package 0x3764580c8b2678
 
 # Deployed Contracts
 
+# Sui Configuration
+SWAP_CONTRACT_SUI_PACKAGE_ID=0x542196e996a3504bcfdc8b837d5af40c989c15dc2514357689bc76e619ef9a39
+SWAP_CONTRACT_SUI_REGISTRY_OBJECT_ID=0xb0ae81570a901034d3c407dfa3ecb71b6d57b6703534fe0585e8376d044a497e
+SILVER_COIN_ADDRESS="0xe33c8ada01d0c54b83546a768bf35b9af658502b59fa03c20793f832a91098d5::silver::SILVER"
 
-1. Silver coin on Sui Testnet
-package Id
-0xe33c8ada01d0c54b83546a768bf35b9af658502b59fa03c20793f832a91098d5
-
-Treasury cap object
-0x4dfb330cf192396e03f988df495eb567de8f5176c080a9b8472813436ca2829c
-
-Coin Address: 0x2::coin::Coin<0xe33c8ada01d0c54b83546a768bf35b9af658502b59fa03c20793f832a91098d5
-
-
-**Swap Contract**
-Package ID: 0x275626d26726ad0d4bddc89c29120a97411207223d01a549438092d003ecc8bb
-Swap Registry: 0xdf92792583d16d20b05d720c7f5da65adcdb8f7ef5b084a6295e1d799345b9d1
 
 # Open Questions
 
 - [] Deploy Senku Coin
 
 
-
-
-# Prompts
-
-, once relayer creates source and destination escrow, relayer responds to relayer that both escrow filled. 
-now relayer will reveal the secret for resepective order
-and the resolver will first claim funds for user on destination chain and then will claim funds for himself on the source chain
-
-For sui to eth flow, eth resolver should be able to withdraw funds.
-
-
-
-- [] Get signature on Sui for fund transfer
 

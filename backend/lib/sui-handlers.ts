@@ -1,6 +1,5 @@
 import { getFullnodeUrl, SuiClient, type SuiTransactionBlockResponse } from '@mysten/sui/client';
 import { Transaction } from '@mysten/sui/transactions';
-import { ethers } from 'ethers';
 import { type GenericKeyPairType, getKeypair } from './privKey';
 import { SUI_CONFIG } from '../config'
 
@@ -96,6 +95,14 @@ async function fundSrcEscrow<T>(
 
   // Split coins if needed
   const [coin] = tx.splitCoins(tx.object(coinObjectId), [amount]);
+  console.log("fund dst args", [
+    tx.object(SUI_CONFIG.SWAP_CONTRACT_SUI_REGISTRY_OBJECT_ID),
+    coin,
+    tx.pure.u64(minDstAmount),
+    tx.pure.u64(expirationDurationMs),
+    tx.pure.vector('u8', Array.from(secretHash)),
+    tx.object(SUI_CONFIG.CLOCK_OBJECT_ID)
+  ])
 
   tx.moveCall({
     target: `${SUI_CONFIG.SWAP_CONTRACT_SUI_PACKAGE_ID}::swap_v3::announce_order`,
@@ -150,7 +157,7 @@ async function fundDstEscrow<T>(
     tx.object('0x6'), // clock
   ]
   console.log("Coin", coin)
-  console.log("Txn args")
+  console.log("Txn args", args)
   tx.moveCall({
     target: `${SUI_CONFIG.SWAP_CONTRACT_SUI_PACKAGE_ID}::swap_v3::fund_dst_escrow`,
     typeArguments: [coinType],

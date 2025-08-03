@@ -28,7 +28,6 @@ export const ethereumConfig = {
   "escrowFactoryContractAddress": "0xd3e99B1622A45153f087173e904296e7B6e357DF"
 };
 
-console.log("resol jey", process.env.RESOLVER_SUI_ACC_PRIVATE_KEY)
 const RESOLVER_KEYPAIR = getKeypair(process.env.RESOLVER_SUI_ACC_PRIVATE_KEY || "")
 const RESOLVER_ADDRESS = RESOLVER_KEYPAIR.getPublicKey().toSuiAddress()
 const USER_KEYPAIR = getKeypair(process.env.USER_PRIVATE_KEY || "")

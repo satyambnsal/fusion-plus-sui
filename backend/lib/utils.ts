@@ -1,8 +1,7 @@
 import type { CrossChainOrder } from "@1inch/cross-chain-sdk";
 import { Contract } from "ethers";
-import { provider } from "./config";
+import { provider } from "../config";
 import ERC20 from '../1inch-contracts/IERC20.sol/IERC20.json'
-import { resolvers } from './server'
 
 export function serializeOrder(order: CrossChainOrder) {
   const serialized: any = {};
@@ -38,10 +37,10 @@ export const getEthereumTokenBalance = async (tokenAddress: string, userAddress:
 }
 
 
-export function broadcastNewOrder(orderData: any) {
+export function broadcastNewOrder(resolvers: Set<unknown>, orderData: any) {
   const message = JSON.stringify({ event: 'newOrder', data: orderData });
   resolvers.forEach((resolver: any) => {
-    if (resolver.readyState === 1) { // 1 = OPEN
+    if (resolver.readyState === 1) {
       resolver.send(message);
     }
   });

@@ -1,6 +1,6 @@
 import { id, Interface, JsonRpcProvider } from 'ethers'
 import * as Sdk from '@1inch/cross-chain-sdk'
-import EscrowFactoryContract from '../../1inch-contracts/EscrowFactory.sol/EscrowFactory.json'
+import EscrowFactoryContract from '../1inch-contracts/EscrowFactory.sol/EscrowFactory.json'
 
 export class EscrowFactory {
   private iface = new Interface(EscrowFactoryContract.abi)

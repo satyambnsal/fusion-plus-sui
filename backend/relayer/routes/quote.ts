@@ -1,7 +1,7 @@
 import express, { type Request, type Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
-import { config } from '../config';
+import { config } from '../../config';
 import type { Preset, QuoterResponse } from '../types';
 import { db } from '../db'
 
