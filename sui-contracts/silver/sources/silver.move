@@ -1,4 +1,3 @@
-/// Module: silver
 module silver::silver;
 
 use sui::coin::{Self, TreasuryCap, CoinMetadata};
