@@ -130,7 +130,7 @@ ws.on('message', async (data: any) => {
       }
       await db.data.filledOrders.push(payload);
       await db.write();
-      console.log("Data written to DB successfully")
+      console.log("Data written to DB successfully", payload)
       ws.send(JSON.stringify({ kind: SOCKET_EVENTS.ORDER_FILLED, data: payload }))
     } else {
       console.log(`Skipping this order as order is not initiated from SUI chain`)

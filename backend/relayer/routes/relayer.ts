@@ -185,9 +185,9 @@ router.get('/checkOrderStatus', async (req, res) => {
 })
 
 
-export const handleOrderFilled = async (data: any) => {
-    console.log("handler order fill", data)
-    broadcastNewOrder(resolvers, SOCKET_EVENTS.ORDER_FILLED, data)
-}
+// export const handleOrderFilled = async (data: any) => {
+//     console.log("handler order fill", data)
+//     broadcastNewOrder(resolvers, SOCKET_EVENTS.ORDER_FILLED, data)
+// }
 
 export default router

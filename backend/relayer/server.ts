@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import swaggerUi from 'swagger-ui-express';
-import relayerRoutes, { handleOrderFilled } from './routes/relayer';
+import relayerRoutes from './routes/relayer';
 import quoterRoutes from './routes/quote'
 import { db } from './db'
 import http from 'http'
@@ -23,9 +23,9 @@ wss.on('connection', (ws) => {
 
   ws.on('message', async (data) => {
     const parsedData = JSON.parse(data.toString())
-    if (parsedData.event === SOCKET_EVENTS.ORDER_FILLED) {
-      handleOrderFilled(parsedData?.data)
-    }
+    // if (parsedData.event === SOCKET_EVENTS.ORDER_FILLED) {
+    //   handleOrderFilled(parsedData?.data)
+    // }
   })
 
   ws.on('close', () => {

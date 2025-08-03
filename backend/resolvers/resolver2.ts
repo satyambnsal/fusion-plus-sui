@@ -100,6 +100,7 @@ const processNewOrder = async (data: any) => {
     }
     await db.data.filledOrders.push(payload);
     await db.write();
+    console.log("Data written to DB successfully", payload)
 
 
     const claimFundResp = await claimFunds(suiClient, SUI_CONFIG.RESOLVER_KEYPAIR, SUI_CONFIG.SILVER_COIN_ADDRESS, response.orderObjectId, originalSecret)
