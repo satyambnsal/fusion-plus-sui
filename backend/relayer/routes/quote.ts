@@ -84,11 +84,9 @@ const quoteHandler = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid source or destination chain ID' });
     }
 
-    // Calculate quote details
     const exchangeRate = getExchangeRate(srcTokenAddress, dstTokenAddress);
     const quoteDetails = calculateQuote(amount, exchangeRate);
 
-    // Generate response
     const response: QuoterResponse = {
       quoteId: uuidv4(),
       ...quoteDetails,
@@ -110,7 +108,6 @@ const quoteHandler = async (req: Request, res: Response) => {
       recommendedPreset: 'fast',
     };
 
-    // Store quote in LowDB
     db.data.quotes.push(response);
     await db.write();
 
@@ -121,7 +118,6 @@ const quoteHandler = async (req: Request, res: Response) => {
   }
 };
 
-// Express router setup
 const router = express.Router();
 router.post('/quote/receive', quoteHandler);
 

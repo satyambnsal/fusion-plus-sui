@@ -20,6 +20,7 @@ content-type: application/json
 
 {
   "maker": "0x0a056Fe7E800FDA3Bfc4EcDD3c6f3DF19472B3a6",
+  "receiver": "0x45abe1b325d24ee32f0318fd8706b757db4e22f89fa5ba53203e7da0f2d10eb1",
   "makingAmount": "1000000",
   "takingAmount": "1000000",
   "makerAsset": "0x53a1F11321C7fBAdebd57b50F98237A21aC1E433",
@@ -34,18 +35,6 @@ GET http://localhost:3004/relayer/checkOrderStatus?orderHash=0x3522bbecc3748a9ee
 
 ### Get Health
 GET http://localhost:3004/health
-
-
-### Get Quote
-GET http://localhost:3004/relayer/getQuote
-    ?srcTokenAddress=0x51B6c8FAb037fBf365CF43A02c953F2305e70bb4
-    &dstTokenAddress=0x0000000000000000000000000000000000000000
-    &srcChainId=11155111
-    &dstChainId=8453
-    &amount=11111
-Content-Type: application/json
-
-
 
 ### Fill order
 POST http://localhost:3004/relayer/submitOrder

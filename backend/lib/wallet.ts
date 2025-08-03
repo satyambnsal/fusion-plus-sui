@@ -1,6 +1,6 @@
-import { AbiCoder, Contract, JsonRpcProvider, Signer, TransactionRequest, Wallet as PKWallet } from 'ethers'
-// import Sdk from '@1inch/cross-chain-sdk'
+import { AbiCoder, Contract, JsonRpcProvider, type Signer, type TransactionRequest, Wallet as PKWallet } from 'ethers'
 import ERC20 from '../1inch-contracts/IERC20.sol/IERC20.json'
+import * as Sdk from '@1inch/cross-chain-sdk'
 
 const coder = AbiCoder.defaultAbiCoder()
 
@@ -18,10 +18,7 @@ export class Wallet {
     }
 
     public static async fromAddress(address: string, provider: JsonRpcProvider): Promise<Wallet> {
-        // await provider.send('anvil_impersonateAccount', [address.toString()])
-
         const signer = await provider.getSigner(address.toString())
-
         return new Wallet(signer, provider)
     }
 
@@ -43,7 +40,6 @@ export class Wallet {
     public async unlimitedApprove(tokenAddress: string, spender: string): Promise<void> {
         const currentApprove = await this.getAllowance(tokenAddress, spender)
 
-        // for usdt like tokens
         if (currentApprove !== 0n) {
             await this.approveToken(tokenAddress, spender, 0n)
         }
@@ -84,8 +80,6 @@ export class Wallet {
 
     public async signOrder(srcChainId: number, order: Sdk.CrossChainOrder): Promise<string> {
         const typedData = order.getTypedData(srcChainId)
-
-        console.log("====== typed data=======", typedData)
         return this.signer.signTypedData(
             typedData.domain,
             { Order: typedData.types[typedData.primaryType] },
@@ -120,7 +114,6 @@ export class Wallet {
 }
 
 
-// Add this helper function
 export async function getContractTokenBalance(contractAddress: string, tokenAddress: string, provider: JsonRpcProvider): Promise<bigint> {
     const tokenContract = new Contract(tokenAddress, ERC20.abi, provider);
     return tokenContract.balanceOf(contractAddress);

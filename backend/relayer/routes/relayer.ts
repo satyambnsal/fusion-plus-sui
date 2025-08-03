@@ -64,7 +64,6 @@ router.post('/createOrder', async (req, res) => {
         await db.write();
     }
 
-
     try {
         const secretBytes = ethers.toUtf8Bytes(secret);
         const finalSecret = uint8ArrayToHex(secretBytes)
@@ -152,6 +151,8 @@ router.post('/submitOrder', async (req, res) => {
     res.json({ success: true, message: "Order submitted successfully" })
 })
 
+
+
 router.get('/checkOrderStatus', async (req, res) => {
     try {
         const { orderHash } = req.query;
@@ -184,10 +185,5 @@ router.get('/checkOrderStatus', async (req, res) => {
     }
 })
 
-
-// export const handleOrderFilled = async (data: any) => {
-//     console.log("handler order fill", data)
-//     broadcastNewOrder(resolvers, SOCKET_EVENTS.ORDER_FILLED, data)
-// }
 
 export default router

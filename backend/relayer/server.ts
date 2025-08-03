@@ -4,10 +4,8 @@ import morgan from 'morgan';
 import swaggerUi from 'swagger-ui-express';
 import relayerRoutes from './routes/relayer';
 import quoterRoutes from './routes/quote'
-import { db } from './db'
 import http from 'http'
 import { WebSocketServer } from 'ws';
-import { SOCKET_EVENTS } from '../config';
 const app = express();
 const port = process.env.PORT || 3004;
 
@@ -20,13 +18,6 @@ export const resolvers = new Set();
 wss.on('connection', (ws) => {
   console.log('Resolver connected');
   resolvers.add(ws);
-
-  ws.on('message', async (data) => {
-    const parsedData = JSON.parse(data.toString())
-    // if (parsedData.event === SOCKET_EVENTS.ORDER_FILLED) {
-    //   handleOrderFilled(parsedData?.data)
-    // }
-  })
 
   ws.on('close', () => {
     console.log('Resolver disconnected');
@@ -63,7 +54,7 @@ app.use((err: Error, _: express.Request, res: express.Response, next: express.Ne
 });
 
 server.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-  console.log(`WebSocket server running on ws://localhost:${port}`);
-  console.log(`API Documentation available at http://localhost:${port}/api-docs`);
+  console.log(`Relayer http Server is running on port ${port}`);
+  console.log(`RelayerWebSocket server running on ws://localhost:${port}`);
+  console.log(`Relayer API Documentation available at http://localhost:${port}/api-docs`);
 }); 

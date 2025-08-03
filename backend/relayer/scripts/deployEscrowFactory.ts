@@ -8,7 +8,6 @@ import { ethereumConfig as config } from '../../config'
 
 
 
-// Deploy EscrowFactory on Ethereum
 async function deployEscrowAndResolver() {
   const provider = await getProvider()
   const deployer = new SignerWallet(config.ownerPrivateKey, provider)
